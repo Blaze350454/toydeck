@@ -43,7 +43,7 @@
         <label class="inline">Pattern for all
           <select id="all-pattern"></select>
         </label>
-        <button id="apply-all" type="button">Apply to all</button>
+        <button id="apply-all" type="button" title="Play this pattern on every toy now">Play on all</button>
         <button id="sync-all" type="button" title="Restart every pattern from the beginning so they line up">Sync</button>
         <button id="patterns-btn" type="button">Edit patterns</button>
         <button id="connect-all" type="button" hidden>Connect saved toys</button>
@@ -70,9 +70,12 @@
         </div>
       </div>
 
-      <div class="seg" role="radiogroup" aria-label="Mode">
-        <label><input type="radio" value="manual" checked> Manual</label>
-        <label><input type="radio" value="pattern"> Pattern</label>
+      <div class="row space">
+        <div class="seg" role="radiogroup" aria-label="Mode">
+          <label><input type="radio" value="manual" checked> Manual</label>
+          <label><input type="radio" value="pattern"> Pattern</label>
+        </div>
+        <button type="button" class="run" aria-pressed="false">Start</button>
       </div>
 
       <div class="manual-ui">
@@ -95,10 +98,16 @@
           <button type="button" class="pdelete ghost" hidden>Delete recording</button>
         </div>
         <canvas class="preview" width="600" height="60" aria-hidden="true"></canvas>
-        <label class="slider-label"><span>Strength <output class="pstrength-out">70%</output></span>
-          <input class="pstrength" type="range" min="0" max="100" value="70"></label>
-        <label class="slider-label"><span>Speed <output class="pspeed-out">1.0×</output></span>
-          <input class="pspeed" type="range" min="25" max="300" value="100"></label>
+        <div class="motor-row strength-row">
+          <label class="slider-label"><span>Strength <output class="pstrength-out">70%</output></span>
+            <input class="pstrength" type="range" min="0" max="100" value="70"></label>
+          <button type="button" class="motor-toggle pstrength-toggle" aria-pressed="true" aria-label="Strength on or off">On</button>
+        </div>
+        <div class="motor-row speed-row">
+          <label class="slider-label"><span>Speed <output class="pspeed-out">1.0×</output></span>
+            <input class="pspeed" type="range" min="25" max="300" value="100"></label>
+          <button type="button" class="motor-toggle pspeed-toggle" aria-pressed="true" aria-label="Speed on or off (off freezes the pattern)">On</button>
+        </div>
         <label class="inline check"><input type="checkbox" class="offset"> Offset motors (take turns)</label>
       </div>
 
@@ -150,7 +159,6 @@
       </details>
 
       <div class="row wrap">
-        <button type="button" class="stop-one">Stop</button>
         <button type="button" class="connect primary" hidden>Connect</button>
         <button type="button" class="disconnect ghost">Disconnect</button>
       </div>

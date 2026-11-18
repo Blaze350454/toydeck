@@ -136,7 +136,10 @@ function makeToy(key, saved = {}) {
     minPower: saved.minPower ?? 0,
     // Slider positions are remembered; motors always start Off so nothing runs on connect.
     levels: Array.from({ length: 4 }, (_, i) => saved.levels?.[i] ?? 0),
-    enabled: [false, false, false, false],
+    enabled: [true, true, true, true],   // per-motor On/Off; the card's Start/Stop is the main switch
+    running: false,                      // always starts stopped: press Start
+    strengthOn: true,
+    speedOn: true,
     linked: saved.linked ?? true,
     mode: 'manual',
     patternId: 'wave',
@@ -384,10 +387,11 @@ function motorByte(toy, level) {
 
 // Levels from the sliders, before the master level (what recordings capture).
 // A motor that's switched Off sends 0 but keeps its slider position.
+// Nothing runs until the card's Start button is pressed (toy.running).
 function manualLevels(toy) {
   return Array.from({ length: toy.motors }, (_, m) => {
     const i = toy.linked ? 0 : m;
-    return toy.enabled[i] ? toy.levels[i] : 0;
+    return toy.running && toy.enabled[i] ? toy.levels[i] : 0;
   });
 }
 
@@ -397,9 +401,10 @@ function currentLevels(toy) {
     const p = findPattern(toy.patternId);
     const len = patternLength(p);
     const n = toy.motors;
+    const strength = toy.running && toy.strengthOn ? toy.pStrength : 0;
     out = Array.from({ length: n }, (_, m) => {
       const shift = toy.offset && n > 1 && !p.tracks ? Math.floor((len * m) / n) : 0;
-      return patternValue(p, m, Math.floor(toy.phase) + shift) * toy.pStrength;
+      return patternValue(p, m, Math.floor(toy.phase) + shift) * strength;
     });
   } else {
     out = manualLevels(toy);
@@ -423,7 +428,8 @@ function tick() {
   const dt = now - lastTick;
   lastTick = now;
   for (const toy of toys.values()) {
-    if (toy.mode === 'pattern') {
+    // Speed Off freezes the pattern on its current step.
+    if (toy.mode === 'pattern' && toy.running && toy.speedOn) {
       const p = findPattern(toy.patternId);
       toy.phase = (toy.phase + (dt * toy.pSpeed) / p.stepMs) % patternLength(p);
     }
@@ -444,6 +450,7 @@ setInterval(tick, TICK_MS);
 // ---------- recording (per toy) ----------
 function startRecording(toy) {
   if (toy.mode !== 'manual') { toy.mode = 'manual'; syncToyUI(toy); }
+  setRunning(toy, true);   // recording what you feel, so the toy runs while recording
   const now = performance.now();
   toy.recDraft = null;
   toy.rec = { start: now, last: now, tracks: Array.from({ length: toy.motors }, () => []) };
@@ -493,13 +500,14 @@ function keepRecording(toy) {
   toy.recDraft = null;
   toy.ui.recTime.textContent = '';
   refreshRecUI(toy);
-  // Switch straight to playing it.
+  // Switch to it, stopped: press Start to play it.
   toy.mode = 'pattern';
   toy.patternId = p.id;
   toy.phase = 0;
+  toy.running = false;
   setStrength(toy, 100);
   syncToyUI(toy);
-  say(`Saved “${name}” for ${toy.name}. It's playing now — find it under Pattern (marked ●).`);
+  say(`Saved “${name}” for ${toy.name}. It's selected under Pattern (marked ●) — press Start to play it.`);
 }
 function discardRecording(toy) {
   toy.recDraft = null;
@@ -513,11 +521,21 @@ function refreshRecUI(toy) {
   ui.recSave.hidden = !toy.recDraft;
 }
 
-// ---------- stop ----------
+// ---------- start / stop ----------
+function setRunning(toy, on) {
+  toy.running = on;
+  refreshRunUI(toy);
+}
+function refreshRunUI(toy) {
+  const btn = toy.ui?.run;
+  if (!btn) return;
+  btn.textContent = toy.running ? 'Stop' : 'Start';
+  btn.setAttribute('aria-pressed', String(toy.running));
+}
+// Full stop (STOP ALL, leaving the app): motors, suction and heat.
 function stopToy(toy) {
   if (toy.rec) finishRecording(toy);
-  toy.enabled.fill(false);   // switch motors off, keep where the sliders were
-  toy.mode = 'manual';
+  toy.running = false;   // keeps mode, sliders and motor On/Off as they were; Start carries on
   const heatWasOn = toy.heat;
   const suckWasOn = toy.suck > 0;
   toy.heat = false;
@@ -650,8 +668,16 @@ function buildToyCard(toy) {
     hasHeat: $('.has-heat', el),
     hasSuck: $('.has-suck', el),
     suckLevels: $('.suck-levels', el),
+    run: $('.run', el),
+    strengthRow: $('.strength-row', el),
+    strengthBtn: $('.pstrength-toggle', el),
+    speedRow: $('.speed-row', el),
+    speedBtn: $('.pspeed-toggle', el),
   };
   toy.ui = ui;
+  ui.run.addEventListener('click', () => setRunning(toy, !toy.running));
+  ui.strengthBtn.addEventListener('click', () => { toy.strengthOn = !toy.strengthOn; refreshPatternToggles(toy); });
+  ui.speedBtn.addEventListener('click', () => { toy.speedOn = !toy.speedOn; refreshPatternToggles(toy); });
   ui.heatBtn.addEventListener('click', () => setHeat(toy, !toy.heat));
   ui.hasHeat.checked = toy.hasHeat;
   ui.hasSuck.checked = toy.hasSuck;
@@ -681,7 +707,8 @@ function buildToyCard(toy) {
     r.addEventListener('change', () => {
       if (toy.rec) finishRecording(toy);
       toy.mode = r.value;
-      if (toy.mode === 'pattern') toy.phase = 0;
+      toy.phase = 0;
+      toy.running = false;   // switching Manual/Pattern always starts stopped
       syncToyUI(toy);
     });
   });
@@ -724,7 +751,6 @@ function buildToyCard(toy) {
   el.querySelectorAll('[data-extra]').forEach((cb) => {
     cb.addEventListener('change', () => sendExtra(toy, cb.dataset.extra, cb.checked));
   });
-  $('.stop-one', el).addEventListener('click', () => stopToy(toy));
   ui.connect.addEventListener('click', () => connectSaved(toy));
   ui.disconnect.addEventListener('click', () => disconnectToy(toy));
   const forgetBtn = $('.forget', el);
@@ -822,6 +848,15 @@ function renderSlotMap(toy) {
   }));
 }
 
+function refreshPatternToggles(toy) {
+  const { ui } = toy;
+  for (const [row, btn, on] of [[ui.strengthRow, ui.strengthBtn, toy.strengthOn], [ui.speedRow, ui.speedBtn, toy.speedOn]]) {
+    btn.textContent = on ? 'On' : 'Off';
+    btn.setAttribute('aria-pressed', String(on));
+    row.classList.toggle('off', !on);
+  }
+}
+
 function syncToyUI(toy) {
   const { ui } = toy;
   ui.radios.forEach((r) => { r.checked = r.value === toy.mode; });
@@ -834,6 +869,8 @@ function syncToyUI(toy) {
   renderSliders(toy);
   renderSlotMap(toy);
   refreshRecUI(toy);
+  refreshRunUI(toy);
+  refreshPatternToggles(toy);
   drawPreview(toy);
 }
 
@@ -901,7 +938,7 @@ document.addEventListener('visibilitychange', () => {
     stoppedInBackground = true;
   } else if (document.visibilityState === 'visible' && stoppedInBackground) {
     stoppedInBackground = false;
-    say('Toys were stopped while ToyDeck was in the background. Tap On to carry on.');
+    say('Toys were stopped while ToyDeck was in the background. Tap Start to carry on.');
   }
   updateWakeLock();
 });
@@ -967,7 +1004,7 @@ $('#apply-all').addEventListener('click', () => {
   const id = $('#all-pattern').value;
   for (const toy of toys.values()) {
     if (toy.rec) finishRecording(toy);
-    toy.mode = 'pattern'; toy.patternId = id; toy.phase = 0; syncToyUI(toy);
+    toy.mode = 'pattern'; toy.patternId = id; toy.phase = 0; toy.running = true; syncToyUI(toy);
   }
   say(`Playing “${findPattern(id).name}” on all toys.`);
 });
@@ -1131,7 +1168,7 @@ $('#pd-try').addEventListener('click', () => {
   const tmp = { id: '__try', name: 'Preview', stepMs: editing.stepMs, steps: [...editing.steps], builtin: true };
   const i = BUILTIN.findIndex((p) => p.id === '__try');
   if (i >= 0) BUILTIN[i] = tmp; else BUILTIN.push(tmp);
-  for (const toy of toys.values()) { toy.mode = 'pattern'; toy.patternId = '__try'; toy.phase = 0; syncToyUI(toy); }
+  for (const toy of toys.values()) { toy.mode = 'pattern'; toy.patternId = '__try'; toy.phase = 0; toy.running = true; syncToyUI(toy); }
   refreshPatternSelects();
   pd.msg.textContent = toys.size ? 'Playing on all toys. Press STOP ALL to stop.' : 'Connect a toy to try it.';
 });

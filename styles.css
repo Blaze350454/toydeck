@@ -9,6 +9,7 @@
   --accent-text: #ffffff;
   --stop: #e0303f;
   --ok: #1f9d55;
+  --go: #15803d;
   --warn: #c77700;
   --track: #dfe8f3;
   --target-size: 24px;
@@ -158,6 +159,8 @@ input[type="range"] {
 .motor-toggle[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .motor-row.off input[type="range"] { opacity: 0.45; }
 .motor-row.off output { text-decoration: line-through; }
+button.run { min-inline-size: 6.5rem; font-weight: 800; letter-spacing: 0.02em; border: none; color: #fff; background: var(--go); }
+button.run[aria-pressed="true"] { background: var(--stop); }
 
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; justify-self: start; }
 .seg label { padding: 0.35rem 0.9rem; cursor: pointer; display: inline-flex; align-items: center; }
