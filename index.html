@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f2f6fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d131c" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Control several Bluetooth toys at once: intensity, on/off per motor, patterns and recordings.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>ToyDeck</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <h1>ToyDeck</h1>
+    <div class="topbar-actions">
+      <button id="install-app" type="button" class="ghost" hidden>Install app</button>
+      <button id="add-toy" type="button" class="primary">+ Add toy</button>
+    </div>
+  </header>
+
+  <p id="unsupported" class="notice" hidden>
+    This browser can't use Bluetooth. Open this page in <strong>Chrome</strong> on Android, Windows, Mac or ChromeOS
+    (it must be served from <code>https://</code> or <code>localhost</code>).
+  </p>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <main>
+    <section class="master card" aria-labelledby="master-h">
+      <div class="row space">
+        <h2 id="master-h">All toys</h2>
+        <span id="toy-count" class="muted">No toys connected</span>
+      </div>
+      <label class="slider-label">
+        <span>Master level <output id="master-out">100%</output></span>
+        <input id="master" type="range" min="0" max="100" value="100">
+      </label>
+      <div class="row wrap">
+        <label class="inline">Pattern for all
+          <select id="all-pattern"></select>
+        </label>
+        <button id="apply-all" type="button">Apply to all</button>
+        <button id="sync-all" type="button" title="Restart every pattern from the beginning so they line up">Sync</button>
+        <button id="patterns-btn" type="button">Edit patterns</button>
+        <button id="connect-all" type="button" hidden>Connect saved toys</button>
+        <button id="backup" type="button" class="ghost" title="Save your toys, patterns and recordings to a file">Back up</button>
+        <button id="restore" type="button" class="ghost" title="Load a backup file">Restore</button>
+        <input id="restore-file" type="file" accept=".json,application/json" hidden>
+      </div>
+      <button id="stop-all" type="button" class="stop">STOP ALL <kbd>Space</kbd></button>
+    </section>
+
+    <section id="toys" class="toys" aria-label="Connected toys">
+      <p id="empty" class="empty">Tap <strong>+ Add toy</strong>, turn your toy on, and pick it from the list.
+        Repeat for each toy. ToyDeck remembers them for next time.</p>
+    </section>
+  </main>
+
+  <template id="toy-tpl">
+    <article class="card toy">
+      <div class="row space">
+        <h2 class="toy-name"></h2>
+        <span class="badge"></span>
+      </div>
+
+      <div class="seg" role="radiogroup" aria-label="Mode">
+        <label><input type="radio" value="manual" checked> Manual</label>
+        <label><input type="radio" value="pattern"> Pattern</label>
+      </div>
+
+      <div class="manual-ui">
+        <label class="inline check"><input type="checkbox" class="link" checked> Same level for all motors</label>
+        <div class="motor-sliders"></div>
+        <div class="row wrap">
+          <button type="button" class="rec">● Record pattern</button>
+          <span class="rec-time muted" aria-live="polite"></span>
+        </div>
+        <div class="rec-save row wrap" hidden>
+          <label class="inline">Name <input class="rec-name" maxlength="30"></label>
+          <button type="button" class="rec-keep primary">Save</button>
+          <button type="button" class="rec-discard ghost">Discard</button>
+        </div>
+      </div>
+
+      <div class="pattern-ui" hidden>
+        <div class="row wrap">
+          <label class="inline">Pattern <select class="pattern"></select></label>
+          <button type="button" class="pdelete ghost" hidden>Delete recording</button>
+        </div>
+        <canvas class="preview" width="600" height="60" aria-hidden="true"></canvas>
+        <label class="slider-label"><span>Strength <output class="pstrength-out">70%</output></span>
+          <input class="pstrength" type="range" min="0" max="100" value="70"></label>
+        <label class="slider-label"><span>Speed <output class="pspeed-out">1.0×</output></span>
+          <input class="pspeed" type="range" min="25" max="300" value="100"></label>
+        <label class="inline check"><input type="checkbox" class="offset"> Offset motors (take turns)</label>
+      </div>
+
+      <details class="settings">
+        <summary>Toy settings</summary>
+        <label class="inline">Motors
+          <select class="motors">
+            <option value="1">1</option><option value="2">2</option>
+            <option value="3">3</option><option value="4">4</option>
+          </select>
+        </label>
+        <div class="slot-map row wrap"></div>
+        <p class="hint">Channel = which of the toy's 4 command positions drives that motor. If a motor slider does nothing, try another channel.</p>
+        <label class="slider-label"><span>Minimum power <output class="min-out">0</output></span>
+          <input class="minpower" type="range" min="0" max="200" value="0"></label>
+        <p class="hint">Raise this if the toy doesn't move at low levels.</p>
+        <fieldset class="extras">
+          <legend>Extras (only if your toy has them)</legend>
+          <label class="check"><input type="checkbox" data-extra="heat"> Heat</label>
+          <label class="check"><input type="checkbox" data-extra="light"> Lights</label>
+          <label class="check"><input type="checkbox" data-extra="suck"> Suction</label>
+          <label class="check"><input type="checkbox" data-extra="squeeze"> Squeeze</label>
+          <label class="check"><input type="checkbox" data-extra="wiggle"> Wiggle</label>
+          <label class="check"><input type="checkbox" data-extra="squirt"> Squirt</label>
+        </fieldset>
+        <p class="debug muted"></p>
+        <div class="row">
+          <button type="button" class="forget ghost">Forget this toy</button>
+        </div>
+      </details>
+
+      <div class="row wrap">
+        <button type="button" class="stop-one">Stop</button>
+        <button type="button" class="connect primary" hidden>Connect</button>
+        <button type="button" class="disconnect ghost">Disconnect</button>
+      </div>
+    </article>
+  </template>
+
+  <dialog id="pattern-dialog" aria-labelledby="pd-h">
+    <form method="dialog" class="pd">
+      <div class="row space">
+        <h2 id="pd-h">Patterns</h2>
+        <button value="close" class="ghost" aria-label="Close">✕</button>
+      </div>
+      <div class="row wrap">
+        <label class="inline">Edit <select id="pd-select"></select></label>
+        <button type="button" id="pd-new">New</button>
+        <button type="button" id="pd-delete" class="ghost">Delete</button>
+      </div>
+      <label class="inline">Name <input id="pd-name" maxlength="30" required></label>
+      <p class="hint">Drag across the bars to draw your pattern. Each bar is one step.</p>
+      <div id="pd-bars" class="bars" role="img" aria-label="Pattern editor"></div>
+      <div class="row wrap">
+        <label class="inline">Steps
+          <select id="pd-steps"><option>8</option><option>16</option><option selected>24</option><option>32</option><option>48</option><option>64</option></select>
+        </label>
+        <label class="inline">Step length
+          <select id="pd-step-ms"><option value="50">50 ms</option><option value="100" selected>100 ms</option><option value="200">200 ms</option><option value="400">400 ms</option><option value="800">800 ms</option></select>
+        </label>
+        <button type="button" id="pd-clear" class="ghost">Clear</button>
+        <button type="button" id="pd-try">Try on all toys</button>
+      </div>
+      <div class="row end">
+        <button type="button" id="pd-save" class="primary">Save pattern</button>
+      </div>
+      <p id="pd-msg" class="muted" role="status"></p>
+    </form>
+  </dialog>
+</body>
+</html>
