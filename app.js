@@ -15,10 +15,14 @@ const REC_STEP_MS = 100;        // recording resolution
 const REC_MAX_MS = 30 * 60 * 1000;
 const CONNECT_TIMEOUT_MS = 10000;
 const STOP_BYTES = new Uint8Array([0xa0, 0x03, 0, 0, 0, 0, 0xaa]);
+// Heat is on/off only. Suction takes a level: A0 07 01 00 <level> FF (level count depends on the toy).
+const HEAT_ON = 'a004010001ff';
+const HEAT_OFF = 'a00400000000';
+const SUCK_OFF = 'a00700000000';
+const suckCmd = (level) => (level > 0 ? `a0070100${level.toString(16).padStart(2, '0')}ff` : SUCK_OFF);
+const BATTERY_POLL_MS = 60000;
 const EXTRAS = {
-  heat:    { on: 'a004010001ff', off: 'a00400000000' },
   light:   { on: 'a014010001ff', off: 'a01400000000' },
-  suck:    { on: 'a007010001ff', off: 'a00700000000' },
   squeeze: { on: 'a00d000001ff', off: 'a00d00000000' },
   wiggle:  { on: 'a025010001ff', off: 'a02500000000' },
   squirt:  { on: 'a024010001ff', off: 'a02400000000' },
@@ -116,6 +120,7 @@ function fitSlots(slots, n) {
 function saveToySettings(toy) {
   toySettings[toy.key] = {
     motors: toy.motors, slots: toy.slots, minPower: toy.minPower, linked: toy.linked, levels: toy.levels, name: toy.name,
+    hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels,
   };
   store.set('toydeck.toys', toySettings);
 }
@@ -139,9 +144,17 @@ function makeToy(key, saved = {}) {
     pSpeed: 1,
     offset: false,
     phase: 0,
+    hasHeat: saved.hasHeat ?? false,
+    hasSuck: saved.hasSuck ?? false,
+    suckLevels: saved.suckLevels ?? 5,
+    heat: false,      // heat/suction always start off
+    suck: 0,
+    battery: null,    // % if the toy has the standard battery service
+    batteryTimer: null,
     connected: false,
     connecting: false,
     writeChars: [],
+    queue: [],        // one-off commands (stop, heat, suction...) sent in order
     charInfo: '',
     writing: false,
     pending: null,
@@ -176,7 +189,7 @@ function toyForDevice(device) {
 async function addToy() {
   let device;
   try {
-    device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE] });
+    device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE, 'battery_service'] });
   } catch (err) {
     if (err.name !== 'NotFoundError') say(`Couldn't open the Bluetooth picker: ${err.message}`);
     return; // NotFoundError = user closed the picker
@@ -203,7 +216,7 @@ async function connectSaved(toy) {
   }
   let device;
   try {
-    device = await navigator.bluetooth.requestDevice({ filters: [{ name: toy.name }], optionalServices: [SERVICE] });
+    device = await navigator.bluetooth.requestDevice({ filters: [{ name: toy.name }], optionalServices: [SERVICE, 'battery_service'] });
   } catch (err) {
     if (err.name === 'NotFoundError') say(`${toy.name} wasn't picked. Make sure it's switched on and nearby.`);
     else say(`Couldn't open the Bluetooth picker: ${err.message}`);
@@ -242,6 +255,11 @@ async function connectToy(toy, { quiet = false } = {}) {
     toy.connected = true;
     toy.manualStop = false;
     toy.lastHex = '';
+    toy.queue = [];
+    toy.heat = false;
+    toy.suck = 0;
+    if (toy.ui) renderFeatures(toy);
+    readBattery(toy, server);
     say(`${toy.name} connected.`);
     return true;
   } catch (err) {
@@ -261,10 +279,40 @@ async function connectToy(toy, { quiet = false } = {}) {
   }
 }
 
+// Standard Bluetooth battery service (0x180F), if the toy has it. The official app never reads battery.
+async function readBattery(toy, server) {
+  clearInterval(toy.batteryTimer);
+  toy.battery = null;
+  toy.batteryNote = '';
+  try {
+    const service = await server.getPrimaryService('battery_service');
+    const level = await service.getCharacteristic('battery_level');
+    const read = async () => {
+      try { toy.battery = (await level.readValue()).getUint8(0); updateBattery(toy); } catch { /* toy busy */ }
+    };
+    await read();
+    try {
+      await level.startNotifications();
+      level.addEventListener('characteristicvaluechanged', (e) => { toy.battery = e.target.value.getUint8(0); updateBattery(toy); });
+    } catch {
+      toy.batteryTimer = setInterval(() => { if (toy.connected) read(); }, BATTERY_POLL_MS);
+    }
+  } catch (err) {
+    // SecurityError = permission from before battery support; reconnecting through the picker fixes it.
+    toy.batteryNote = err.name === 'SecurityError' ? 'battery: tap Disconnect, then Connect, to allow it' : 'battery: not reported by this toy';
+  }
+  updateBattery(toy);
+  updateDebug(toy);
+}
+
 async function onDisconnected(toy) {
   toy.connected = false;
   toy.writing = false;
   toy.pending = null;
+  toy.queue = [];
+  clearInterval(toy.batteryTimer);
+  toy.battery = null;
+  updateBattery(toy);
   if (toy.rec) finishRecording(toy);
   if (!toys.has(toy.key)) return;
   refreshToyState(toy);
@@ -299,10 +347,19 @@ async function autoReconnect() {
   }
 }
 
-// One write in flight per toy; newest command wins. Every write characteristic gets every command.
-function send(toy, bytes) {
+// One write in flight per toy. Every write characteristic gets every command.
+// Motor levels: only the newest matters (pending). One-off commands (queued) are all sent, in order, first.
+function send(toy, bytes, queued = false) {
   if (!toy.connected || !toy.writeChars.length) return;
-  if (toy.writing) { toy.pending = bytes; return; }
+  if (queued) toy.queue.push(bytes); else toy.pending = bytes;
+  pump(toy);
+}
+function pump(toy) {
+  if (toy.writing || !toy.connected) return;
+  let bytes;
+  if (toy.queue.length) bytes = toy.queue.shift();
+  else if (toy.pending) { bytes = toy.pending; toy.pending = null; }
+  else return;
   toy.writing = true;
   (async () => {
     for (const c of toy.writeChars) {
@@ -316,7 +373,7 @@ function send(toy, bytes) {
     }
   })().finally(() => {
     toy.writing = false;
-    if (toy.pending) { const next = toy.pending; toy.pending = null; send(toy, next); }
+    pump(toy);
   });
 }
 
@@ -461,8 +518,18 @@ function stopToy(toy) {
   if (toy.rec) finishRecording(toy);
   toy.enabled.fill(false);   // switch motors off, keep where the sliders were
   toy.mode = 'manual';
+  const heatWasOn = toy.heat;
+  const suckWasOn = toy.suck > 0;
+  toy.heat = false;
+  toy.suck = 0;
   syncToyUI(toy);
-  if (toy.connected) { toy.lastHex = toHex(STOP_BYTES); toy.lastSentAt = performance.now(); send(toy, STOP_BYTES); }
+  renderFeatures(toy);
+  if (!toy.connected) return;
+  toy.lastHex = toHex(STOP_BYTES);
+  toy.lastSentAt = performance.now();
+  send(toy, STOP_BYTES, true);
+  if (suckWasOn) sendRepeated(toy, SUCK_OFF);
+  if (heatWasOn) sendRepeated(toy, HEAT_OFF);
 }
 function stopAll() {
   for (const toy of toys.values()) stopToy(toy);
@@ -473,14 +540,30 @@ window.addEventListener('pagehide', () => {
   for (const toy of toys.values()) {
     if (!toy.connected) continue;
     for (const c of toy.writeChars) {
-      try { c.writeValueWithoutResponse(STOP_BYTES); } catch { /* page is going away */ }
+      try {
+        c.writeValueWithoutResponse(STOP_BYTES);
+        if (toy.suck) c.writeValueWithoutResponse(hexToBytes(SUCK_OFF));
+        if (toy.heat) c.writeValueWithoutResponse(hexToBytes(HEAT_OFF));
+      } catch { /* page is going away */ }
     }
   }
 });
 
-async function sendExtra(toy, name, on) {
-  const bytes = hexToBytes(on ? EXTRAS[name].on : EXTRAS[name].off);
-  for (let i = 0; i < 3; i++) { send(toy, bytes); await sleep(80); }
+// Switch-type commands are sent 3 times, like the official app does.
+function sendRepeated(toy, hex) {
+  const bytes = hexToBytes(hex);
+  for (let i = 0; i < 3; i++) send(toy, bytes, true);
+}
+function sendExtra(toy, name, on) { sendRepeated(toy, on ? EXTRAS[name].on : EXTRAS[name].off); }
+function setHeat(toy, on) {
+  toy.heat = on;
+  sendRepeated(toy, on ? HEAT_ON : HEAT_OFF);
+  renderFeatures(toy);
+}
+function setSuction(toy, level) {
+  toy.suck = level;
+  sendRepeated(toy, suckCmd(level));
+  renderFeatures(toy);
 }
 
 function disconnectToy(toy) {
@@ -488,7 +571,16 @@ function disconnectToy(toy) {
   if (toy.rec) finishRecording(toy);
   const done = () => { try { toy.device?.gatt.disconnect(); } catch { /* already gone */ } };
   if (toy.connected) {
-    Promise.allSettled(toy.writeChars.map((c) => c.writeValueWithoutResponse(STOP_BYTES))).finally(done);
+    const cmds = [STOP_BYTES];
+    if (toy.suck) cmds.push(hexToBytes(SUCK_OFF));
+    if (toy.heat) cmds.push(hexToBytes(HEAT_OFF));
+    toy.heat = false;
+    toy.suck = 0;
+    (async () => {
+      for (const bytes of cmds) {
+        await Promise.allSettled(toy.writeChars.map((c) => c.writeValueWithoutResponse(bytes)));
+      }
+    })().finally(done);
   } else {
     done();
   }
@@ -549,8 +641,39 @@ function buildToyCard(toy) {
     debug: $('.debug', el),
     connect: $('.connect', el),
     disconnect: $('.disconnect', el),
+    battery: $('.battery', el),
+    features: $('.features', el),
+    heatRow: $('.heat-row', el),
+    heatBtn: $('.heat-toggle', el),
+    suckRow: $('.suck-row', el),
+    levels: $('.levels', el),
+    hasHeat: $('.has-heat', el),
+    hasSuck: $('.has-suck', el),
+    suckLevels: $('.suck-levels', el),
   };
   toy.ui = ui;
+  ui.heatBtn.addEventListener('click', () => setHeat(toy, !toy.heat));
+  ui.hasHeat.checked = toy.hasHeat;
+  ui.hasSuck.checked = toy.hasSuck;
+  ui.suckLevels.value = String(toy.suckLevels);
+  ui.hasHeat.addEventListener('change', () => {
+    toy.hasHeat = ui.hasHeat.checked;
+    if (!toy.hasHeat && toy.heat) setHeat(toy, false);
+    saveToySettings(toy);
+    renderFeatures(toy);
+  });
+  ui.hasSuck.addEventListener('change', () => {
+    toy.hasSuck = ui.hasSuck.checked;
+    if (!toy.hasSuck && toy.suck) setSuction(toy, 0);
+    saveToySettings(toy);
+    renderFeatures(toy);
+  });
+  ui.suckLevels.addEventListener('change', () => {
+    toy.suckLevels = +ui.suckLevels.value;
+    if (toy.suck > toy.suckLevels) setSuction(toy, toy.suckLevels);
+    saveToySettings(toy);
+    renderFeatures(toy);
+  });
   ui.name.textContent = toy.name;
   const group = `mode-${toy.key}`;
   ui.radios.forEach((r) => {
@@ -609,7 +732,41 @@ function buildToyCard(toy) {
   $('#empty').hidden = true;
   toysEl.append(el);
   syncToyUI(toy);
+  renderFeatures(toy);
   refreshToyState(toy);
+}
+
+function renderFeatures(toy) {
+  const { ui } = toy;
+  if (!ui) return;
+  ui.features.hidden = !toy.hasHeat && !toy.hasSuck;
+  ui.heatRow.hidden = !toy.hasHeat;
+  ui.heatBtn.textContent = toy.heat ? 'On' : 'Off';
+  ui.heatBtn.setAttribute('aria-pressed', String(toy.heat));
+  ui.suckRow.hidden = !toy.hasSuck;
+  const buttons = Array.from({ length: toy.suckLevels + 1 }, (_, level) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = level === 0 ? 'Off' : String(level);
+    b.setAttribute('aria-pressed', String(toy.suck === level));
+    b.setAttribute('aria-label', level === 0 ? 'Suction off' : `Suction level ${level}`);
+    b.addEventListener('click', () => setSuction(toy, level));
+    return b;
+  });
+  ui.levels.replaceChildren(...buttons);
+  const disabled = !toy.connected;
+  ui.heatBtn.disabled = disabled;
+  buttons.forEach((b) => { b.disabled = disabled; });
+}
+
+function updateBattery(toy) {
+  const el = toy.ui?.battery;
+  if (!el) return;
+  const known = toy.connected && toy.battery != null;
+  el.hidden = !known;
+  if (!known) return;
+  el.textContent = `Battery ${toy.battery}%`;
+  el.classList.toggle('low', toy.battery < 20);
 }
 
 function renderSliders(toy) {
@@ -689,6 +846,8 @@ function refreshToyState(toy) {
   ui.connect.hidden = toy.connected || toy.connecting;
   ui.disconnect.hidden = !toy.connected;
   ui.el.classList.toggle('offline', !toy.connected);
+  renderFeatures(toy);
+  updateBattery(toy);
   updateDebug(toy);
   updateCount();
 }
@@ -704,6 +863,7 @@ function updateDebug(toy) {
     `sent ${toy.lastHex || '—'}`,
     toy.lastRx && `received ${toy.lastRx}`,
     toy.lastError && `error ${toy.lastError}`,
+    toy.connected && toy.batteryNote,
   ].filter(Boolean).join(' · ');
 }
 function updateCount() {

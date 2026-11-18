@@ -64,7 +64,10 @@
     <article class="card toy">
       <div class="row space">
         <h2 class="toy-name"></h2>
-        <span class="badge"></span>
+        <div class="row">
+          <span class="battery" hidden></span>
+          <span class="badge"></span>
+        </div>
       </div>
 
       <div class="seg" role="radiogroup" aria-label="Mode">
@@ -99,8 +102,29 @@
         <label class="inline check"><input type="checkbox" class="offset"> Offset motors (take turns)</label>
       </div>
 
+      <div class="features" hidden>
+        <div class="feature heat-row" hidden>
+          <span>Heat</span>
+          <button type="button" class="heat-toggle motor-toggle" aria-pressed="false">Off</button>
+        </div>
+        <div class="feature suck-row" hidden>
+          <span>Suction</span>
+          <div class="levels" role="group" aria-label="Suction level"></div>
+        </div>
+      </div>
+
       <details class="settings">
         <summary>Toy settings</summary>
+        <fieldset class="extras">
+          <legend>Controls this toy has</legend>
+          <label class="check"><input type="checkbox" class="has-heat"> Heat</label>
+          <label class="check"><input type="checkbox" class="has-suck"> Suction</label>
+          <label class="inline">Suction levels
+            <select class="suck-levels">
+              <option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="10">10</option>
+            </select>
+          </label>
+        </fieldset>
         <label class="inline">Motors
           <select class="motors">
             <option value="1">1</option><option value="2">2</option>
@@ -113,10 +137,8 @@
           <input class="minpower" type="range" min="0" max="200" value="0"></label>
         <p class="hint">Raise this if the toy doesn't move at low levels.</p>
         <fieldset class="extras">
-          <legend>Extras (only if your toy has them)</legend>
-          <label class="check"><input type="checkbox" data-extra="heat"> Heat</label>
+          <legend>Other extras (only if your toy has them)</legend>
           <label class="check"><input type="checkbox" data-extra="light"> Lights</label>
-          <label class="check"><input type="checkbox" data-extra="suck"> Suction</label>
           <label class="check"><input type="checkbox" data-extra="squeeze"> Squeeze</label>
           <label class="check"><input type="checkbox" data-extra="wiggle"> Wiggle</label>
           <label class="check"><input type="checkbox" data-extra="squirt"> Squirt</label>
