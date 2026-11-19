@@ -45,7 +45,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 
 ## Toy settings (per toy, remembered)
 - **Controls this toy has:** tick what the toy can do: **Heat**, **Suction levels**, **Lights**, **Squeeze**, **Ripple**, **Squirt**. Each one ticked gets an On/Off button (Suction: level buttons) on the card and a row in the All toys panel. **Suction levels** sets how many level buttons appear (try lower if top levels feel the same).
-  *Suction comes two ways. Some toys take suction **levels** (tick Suction levels). Others drive suction like a motor: give the toy a motor with Type **Suction** instead. **J-Rosella 2** is the second kind: Motors 1, Type Suction, Channel 1.*
+  *Suction comes two ways. Some toys take suction **levels** (tick Suction levels). Others drive suction like a motor: give the toy a motor with Type **Suction** instead. **J-Rosella 2** is the second kind: Motors 1, Type Suction, Channel 1, **Min power 175** (lower and its pump pulses on and off instead of sucking steadily). Suction levels do nothing on it.*
   *Ripple is JoyHub's separate wiggle/ripple switch. If one of the toy's motors is what wiggles, set that motor's Type to Wiggle instead.*
 - **Motors:** how many motors the toy has, **0 to 4**. Choose **0** for a toy with no motors (e.g. suction only): its card then shows just its other controls, and it never gets motor commands.
 - **Motor type:** **Vibe**, **Thrust**, **Wiggle**, **Flipper** or **Suction** for each motor. Sliders are coloured by type: Vibe green, Thrust orange, Wiggle purple, Flipper cyan, Suction pink. A one-motor flipper toy: Motors 1, Type Flipper. Its slider is named after it, and the All toys panel uses it (below).
