@@ -202,14 +202,14 @@ button.toy-head:focus-visible { outline: 2px solid var(--accent); outline-offset
 .toy-pic-box {
   flex: none;
   display: block;
-  inline-size: 44px;
+  inline-size: 56px;
   block-size: 60px;
   border-radius: 10px;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
   transition: block-size 0.2s ease, inline-size 0.2s ease;
 }
 .toy-pic { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; }
-.toy.no-pic .toy-pic-box { block-size: 44px; }
+.toy.no-pic .toy-pic-box { inline-size: 44px; block-size: 44px; }
 .toy-title { flex: 1; min-inline-size: 0; display: grid; gap: 0.2rem; }
 .toy-name { font-size: 1.05rem; font-weight: 700; text-wrap: balance; }
 .toy-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
@@ -230,7 +230,9 @@ button.toy-head:focus-visible { outline: 2px solid var(--accent); outline-offset
 .toy.collapsed .chev { transform: rotate(45deg); }   /* points down: tap to open */
 .toy.collapsed { cursor: pointer; }
 .toy.collapsed:hover { border-color: var(--accent); }
-.toy.collapsed .toy-pic-box { inline-size: 64px; block-size: 140px; }
+/* Wide enough for wide toys (J-Pinhead), tall enough for tall ones (J-Phantom); pictures keep their shape. */
+.toy.collapsed .toy-pic-box { inline-size: 120px; block-size: 140px; }
+.toy.collapsed.no-pic .toy-pic-box { inline-size: 64px; }
 .toy.collapsed.no-pic .toy-pic-box { block-size: 64px; }
 @media (prefers-reduced-motion: reduce) {
   .toy-pic-box, .chev { transition: none; }

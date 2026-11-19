@@ -636,6 +636,7 @@ function setStrength(toy, pct) {
 // (and in FILES in sw.js) and add a line here. The key is the name lowercased with only letters and digits.
 const TOY_PICS = {
   jphantom: 'toys/j-phantom.webp',
+  jpinhead: 'toys/j-pinhead.webp',
 };
 const FALLBACK_PIC = 'icons/icon.svg';
 function toyPicture(name) {
