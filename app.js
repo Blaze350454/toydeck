@@ -154,10 +154,11 @@ const readLimits = (s) => Array.from({ length: 4 }, (_, i) => {
   const hi = clamp(Math.round(l?.[1] == null ? 100 : +l[1] || 0), lo + 1, 100);
   return [lo, hi];
 });
+const readLimitLocks = (s) => Array.from({ length: 4 }, (_, i) => s?.limitLocks?.[i] === true);   // 🔒: brackets can't move
 const limitLevel = (toy, m, v) => clamp(v, toy.limits[m][0] / 100, toy.limits[m][1] / 100);
 function saveToySettings(toy) {
   toySettings[toy.key] = {
-    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], limits: toy.limits, linked: toy.linked, levels: toy.levels, name: toy.name,
+    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], limits: toy.limits, limitLocks: toy.limitLocks, linked: toy.linked, levels: toy.levels, name: toy.name,
     hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels, motorTypes: toy.motorTypes,
     extras: Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]),
   };
@@ -176,6 +177,7 @@ function makeToy(key, saved = {}) {
     motorTypes: Array.from({ length: 4 }, (_, i) => (saved.motorTypes?.[i] in MOTOR_TYPES ? saved.motorTypes[i] : 'vibe')),
     minPowers: readMinPowers(saved),   // per motor
     limits: readLimits(saved),         // per motor slider [low, high] %
+    limitLocks: readLimitLocks(saved), // per motor: limits locked
     // Slider positions are remembered; motors always start Off so nothing runs on connect.
     levels: Array.from({ length: 4 }, (_, i) => saved.levels?.[i] ?? 0),
     enabled: [true, true, true, true],   // per-motor On/Off; the card's Start/Stop is the main switch
@@ -955,11 +957,11 @@ function renderSliders(toy) {
     const locked = overridden(toy, m);
     const motor = toy.linked ? 0 : m;
     const pct = Math.round((locked ? effectiveLevel(toy, motor) : limitLevel(toy, m, toy.levels[m])) * 100);
-    label.innerHTML = `<span>${title} <output>${locked ? `All toys ${pct}%` : `${pct}%`}</output></span>`
+    label.innerHTML = `<span><span class="motor-name">${title}</span><output>${locked ? `All toys ${pct}%` : `${pct}%`}</output></span>`
       + `<div class="range-wrap"><input type="range" min="0" max="100" value="${pct}"></div>`;
     const input = $('input', label);
     const out = $('output', label);
-    if (!locked) addLimitBrackets(toy, m, $('.range-wrap', label), input, out, title);
+    if (!locked) addLimitBrackets(toy, m, $('.range-wrap', label), input, out, title, $('.motor-name', label));
     if (locked) {
       input.disabled = true;   // the All toys panel sets this level (Override); turn Override off to use this slider
       row.classList.add('overridden');
@@ -995,7 +997,35 @@ function renderSliders(toy) {
 // The [ and ] on a motor slider: drag them in to set the lowest and highest level that slider can reach,
 // so a slip of the finger can't go past them (handy while recording). Linked sliders set every motor's limits.
 const THUMB_PX = 16;   // native range thumb width: brackets sit just outside the thumb at each limit
-function addLimitBrackets(toy, m, wrap, input, out, title) {
+const LOCK_SVG = (closed) => `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/>`
+  + `<path d="${closed ? 'M5 7V5a3 3 0 0 1 6 0v2' : 'M5 7V5a3 3 0 0 1 5.8-1'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+function addLimitBrackets(toy, m, wrap, input, out, title, nameEl) {
+  // Lock: once the limits are right, lock them so the brackets can't be moved by accident. The slider still works.
+  const lockBtn = document.createElement('button');
+  lockBtn.type = 'button';
+  lockBtn.className = 'lim-lock';
+  const isLocked = () => toy.limitLocks[m];
+  const drawLock = () => {
+    const on = isLocked();
+    lockBtn.innerHTML = LOCK_SVG(on);
+    lockBtn.setAttribute('aria-pressed', String(on));
+    lockBtn.setAttribute('aria-label', `${title} limits ${on ? 'locked: tap to unlock' : 'unlocked: tap to lock'}`);
+    lockBtn.title = on ? 'Limits locked — tap to unlock' : 'Lock these limits';
+    wrap.classList.toggle('lim-locked', on);
+    for (const h of Object.values(handles)) {
+      h.tabIndex = on ? -1 : 0;
+      h.setAttribute('aria-disabled', String(on));
+    }
+  };
+  lockBtn.addEventListener('click', (e) => {
+    e.preventDefault();   // inside the label: don't hand the tap to the slider
+    const on = !isLocked();
+    if (toy.linked) toy.limitLocks.fill(on); else toy.limitLocks[m] = on;
+    hideTip();
+    drawLock();
+    saveToySettings(toy);
+  });
+  nameEl.append(lockBtn);
   const shade = [document.createElement('i'), document.createElement('i')];
   shade[0].className = 'lim-shade lo';
   shade[1].className = 'lim-shade hi';
@@ -1069,6 +1099,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
   for (const [side, h] of Object.entries(handles)) {
     h.addEventListener('click', (e) => e.preventDefault());   // inside the label: don't hand the tap to the slider
     h.addEventListener('pointerdown', (e) => {
+      if (isLocked()) return;
       e.preventDefault();
       h.setPointerCapture(e.pointerId);
       h.classList.add('dragging');
@@ -1093,7 +1124,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
     });
     h.addEventListener('keydown', (e) => {
       const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
-      if (!step) return;
+      if (!step || isLocked()) return;
       e.preventDefault();
       showTip(side, 1200);
       set(side, toy.limits[m][side === 'lo' ? 0 : 1] + step * (e.shiftKey ? 10 : 1));
@@ -1101,6 +1132,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
     });
   }
   wrap.append(shade[0], shade[1], handles.lo, handles.hi, tip);
+  drawLock();
   draw();
 }
 
@@ -1977,6 +2009,7 @@ function applySavedSettings(toy, s) {
   toy.motorTypes = Array.from({ length: 4 }, (_, i) => (s.motorTypes?.[i] in MOTOR_TYPES ? s.motorTypes[i] : 'vibe'));
   toy.minPowers = readMinPowers(s);
   toy.limits = readLimits(s);
+  toy.limitLocks = readLimitLocks(s);
   toy.linked = s.linked ?? true;
   if (!toy.connected) toy.levels = Array.from({ length: 4 }, (_, i) => s.levels?.[i] ?? 0);
   toy.hasHeat = s.hasHeat ?? false;
