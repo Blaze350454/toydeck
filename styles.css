@@ -278,3 +278,12 @@ dialog::backdrop { background: #0008; }
 }
 .master-top { display: flex; align-items: center; gap: 0.75rem; }
 .master-top .toy-head { flex: 1; min-inline-size: 0; }
+
+/* "Turn on by function" in the All toys panel, and motor type pickers in Toy settings */
+.groups { display: grid; gap: 0.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--line); }
+.group-h { font-size: 0.95rem; margin: 0; }
+.group-rows { display: grid; gap: 0.6rem; }
+.group-name { font-weight: 600; }
+.group-name small { font-weight: 400; font-size: 0.8rem; }
+.slot-map { display: grid; gap: 0.4rem; }
+.slot-map strong { font-size: 0.9rem; min-inline-size: 4.5rem; }
