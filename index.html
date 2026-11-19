@@ -44,13 +44,22 @@
         </span>
         <span class="chev" aria-hidden="true"></span>
       </button>
+      <button type="button" id="panel-power" class="motor-toggle panel-power" aria-pressed="true"
+        title="Off: this panel has no effect on any toy; each toy runs on its own settings. STOP ALL still works.">On</button>
       <!-- STOP ALL sits in the header, outside the minimizable part: always one tap away -->
       <button id="stop-all" type="button" class="stop">STOP ALL <kbd>Space</kbd></button>
       </div>
       <div id="master-body" class="toy-body">
+      <p id="panel-off-note" class="panel-off-note" hidden>This panel is <strong>off</strong>: it doesn't change any toy, and each toy
+        runs on its own settings. <strong>STOP ALL</strong> still works. Tap <strong>On</strong> at the top to use it again.</p>
       <div id="groups" class="groups" hidden>
-        <h3 class="group-h">Turn on by function</h3>
-        <p class="hint">Switches that function on or off on every connected toy that has it. Set motor types in each toy's Toy settings.</p>
+        <div class="row space wrap">
+          <h3 class="group-h">Turn on by function</h3>
+          <button type="button" id="override-all" class="override-toggle" aria-pressed="true"
+            title="On: the sliders here set every motor's level on every toy. Off: each toy uses its own sliders.">Override</button>
+        </div>
+        <p class="hint">On/Off switches that function on every connected toy that has it. <strong>Override</strong> on: the sliders
+          here set the level of every motor on every toy. Off: each toy uses its own sliders. Set motor types in each toy's Toy settings.</p>
         <div id="group-rows" class="group-rows"></div>
       </div>
       <label class="slider-label">
@@ -95,7 +104,7 @@
       </button>
 
       <div class="toy-body">
-      <div class="row space">
+      <div class="row space mode-row">
         <div class="seg" role="radiogroup" aria-label="Mode">
           <label><input type="radio" value="manual" checked> Manual</label>
           <label><input type="radio" value="pattern"> Pattern</label>
@@ -167,7 +176,7 @@
         <p class="hint">Ripple = JoyHub's separate wiggle/ripple switch. If one of the toy's motors is what wiggles, set that motor's Type to Wiggle instead.</p>
         <label class="inline">Motors
           <select class="motors">
-            <option value="1">1</option><option value="2">2</option>
+            <option value="0">0</option><option value="1">1</option><option value="2">2</option>
             <option value="3">3</option><option value="4">4</option>
           </select>
         </label>
