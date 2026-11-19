@@ -119,9 +119,10 @@ const toySettings = store.get('toydeck.toys', {});
 // What each motor does. The All toys panel can switch one kind on/off across every toy.
 // "Suction" here is a motor channel (A0 03): JoyHub drives a toy's suction that way when the toy's suction has
 // no level steps (e.g. J-Rosella 2). Toys whose suction takes levels use "Suction levels" (A0 07) instead.
-const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust', wiggle: 'Wiggle', suction: 'Suction' };
+// "Flipper" = a motor that flips/flicks (tapping tongue or flap): an ordinary motor channel, named for what it does.
+const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust', wiggle: 'Wiggle', flip: 'Flipper', suction: 'Suction' };
 // Panel rows for motors are per numbered motor: "vibe1" = every toy's 1st vibe motor, "vibe2" its 2nd, ...
-const MOTOR_FN = /^(vibe|thrust|wiggle|suction)([1-4])$/;
+const MOTOR_FN = /^(vibe|thrust|wiggle|flip|suction)([1-4])$/;
 const isMotorFn = (fn) => MOTOR_FN.test(fn);
 const groupLevels = {};   // panel level per row ("vibe1", "thrust1"...)
 const groupLevel = (fn) => groupLevels[fn] ?? 0.5;
