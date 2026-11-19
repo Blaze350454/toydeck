@@ -1011,6 +1011,36 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
   };
   const handles = { lo: mk('lo'), hi: mk('hi') };
   const pos = (p) => `calc(${THUMB_PX / 2}px + (100% - ${THUMB_PX}px) * ${p / 100})`;
+  // Number bubble above the slider while it's held: "Min 30%" / "Max 70%" on a bracket, the level on the thumb.
+  const tip = document.createElement('b');
+  tip.className = 'lim-tip';
+  tip.setAttribute('aria-hidden', 'true');
+  let tipFor = null;   // 'lo' | 'hi' | 'level' while shown
+  let tipTimer = 0;
+  const updateTip = () => {
+    if (!tipFor) return;
+    const [lo, hi] = toy.limits[m];
+    const p = tipFor === 'lo' ? lo : tipFor === 'hi' ? hi : clamp(+input.value, lo, hi);
+    tip.textContent = tipFor === 'lo' ? `Min ${p}%` : tipFor === 'hi' ? `Max ${p}%` : `${p}%`;
+    const edge = tipFor === 'lo' ? ` - ${THUMB_PX / 2}px` : tipFor === 'hi' ? ` + ${THUMB_PX / 2}px` : '';
+    tip.style.left = `calc(${pos(p)}${edge})`;
+    tip.style.translate = `${-p}% 0`;   // centred mid-track, kept inside the slider at either end
+  };
+  const showTip = (kind, ms = 0) => {
+    clearTimeout(tipTimer);
+    tipFor = kind;
+    updateTip();
+    tip.classList.add('show');
+    if (ms) tipTimer = setTimeout(hideTip, ms);
+  };
+  const hideTip = () => { clearTimeout(tipTimer); tipFor = null; tip.classList.remove('show'); };
+  input.addEventListener('pointerdown', () => {
+    showTip('level');
+    addEventListener('pointerup', hideTip, { once: true });
+    addEventListener('pointercancel', hideTip, { once: true });
+  });
+  input.addEventListener('input', updateTip);
+  input.addEventListener('change', () => { if (tipFor === 'level') hideTip(); });
   const draw = () => {
     const [lo, hi] = toy.limits[m];
     handles.lo.style.left = `calc(${pos(lo)} - ${THUMB_PX / 2}px)`;
@@ -1021,6 +1051,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
     shade[1].style.left = `calc(${pos(hi)} + ${THUMB_PX / 2}px)`;
     wrap.classList.toggle('limited', lo > 0 || hi < 100);
     wrap.title = lo > 0 || hi < 100 ? `Limited to ${lo}–${hi}%` : '';
+    updateTip();
   };
   const set = (side, p) => {
     const l = [...toy.limits[m]];
@@ -1041,6 +1072,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
       e.preventDefault();
       h.setPointerCapture(e.pointerId);
       h.classList.add('dragging');
+      showTip(side);
       const move = (ev) => {
         const r = input.getBoundingClientRect();
         const x = ev.clientX - r.left + (side === 'lo' ? THUMB_PX / 2 : -THUMB_PX / 2);   // the bracket is beside the thumb
@@ -1049,6 +1081,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
       move(e);
       const up = () => {
         h.classList.remove('dragging');
+        hideTip();
         h.removeEventListener('pointermove', move);
         h.removeEventListener('pointerup', up);
         h.removeEventListener('pointercancel', up);
@@ -1062,11 +1095,12 @@ function addLimitBrackets(toy, m, wrap, input, out, title) {
       const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
       if (!step) return;
       e.preventDefault();
+      showTip(side, 1200);
       set(side, toy.limits[m][side === 'lo' ? 0 : 1] + step * (e.shiftKey ? 10 : 1));
       saveToySettings(toy);
     });
   }
-  wrap.append(shade[0], shade[1], handles.lo, handles.hi);
+  wrap.append(shade[0], shade[1], handles.lo, handles.hi, tip);
   draw();
 }
 
