@@ -312,3 +312,11 @@ dialog::backdrop { background: #0008; }
   .master-top .toy-head { flex-basis: 100%; }
   .master-top button.stop { margin-inline-start: auto; }
 }
+
+/* Slider colour by motor type (toy cards and the All toys panel) */
+:root { --vibe: #16a34a; --thrust: #ea580c; --wiggle: #8b5cf6; --suction: #db2777; }
+@media (prefers-color-scheme: dark) { :root { --vibe: #22c55e; --thrust: #f97316; --wiggle: #a78bfa; --suction: #f472b6; } }
+.type-vibe input[type="range"] { accent-color: var(--vibe); }
+.type-thrust input[type="range"] { accent-color: var(--thrust); }
+.type-wiggle input[type="range"] { accent-color: var(--wiggle); }
+.type-suction input[type="range"] { accent-color: var(--suction); }

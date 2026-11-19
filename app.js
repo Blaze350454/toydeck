@@ -922,6 +922,8 @@ function renderSliders(toy) {
   for (let m = 0; m < count; m++) {
     const row = document.createElement('div');
     row.className = 'motor-row';
+    const types = toy.linked ? new Set(toy.motorTypes.slice(0, toy.motors)) : new Set([toy.motorTypes[m]]);
+    if (types.size === 1) row.classList.add(`type-${[...types][0]}`);   // slider colour: vibe green, thrust orange...
     const label = document.createElement('label');
     label.className = 'slider-label';
     const title = toy.linked ? linkedTitle(toy) : motorTitle(toy, m);
@@ -1339,7 +1341,7 @@ function buildGroupRow(fn, fns) {
   }
   const head = `<span class="group-name">${name} <small class="group-count muted"></small></span>`;
   if (isMotorFn(fn)) {
-    row.className = 'motor-row group-row group-motor';
+    row.className = `motor-row group-row group-motor type-${fn.match(MOTOR_FN)[1]}`;
     const pct = Math.round(groupLevel(fn) * 100);
     row.innerHTML = `<label class="slider-label"><span>${head}<output>${pct}%</output></span>
       <input type="range" min="0" max="100" value="${pct}" aria-label="${name} level on all toys">
