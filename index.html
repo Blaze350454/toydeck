@@ -77,6 +77,7 @@
         <button id="backup" type="button" class="ghost" title="Save your toys, patterns and recordings to a file">Back up</button>
         <button id="restore" type="button" class="ghost" title="Load a backup file">Restore</button>
         <input id="restore-file" type="file" accept=".json,application/json" hidden>
+        <button id="sync-devices" type="button" class="ghost sync-btn">Sync devices</button>
       </div>
       </div>
     </section>
@@ -200,6 +201,30 @@
       </div>
     </article>
   </template>
+
+  <dialog id="sync-dialog" aria-labelledby="sd-h">
+    <form method="dialog" class="pd">
+      <div class="row space">
+        <h2 id="sd-h">Sync devices</h2>
+        <button value="close" class="ghost" aria-label="Close">✕</button>
+      </div>
+      <p class="hint">Keeps your toys' setup, drawn patterns and recordings the same on your phone and PC, through your
+        own <strong>private</strong> GitHub repo. Changes show on the other device within about 30 seconds.
+        Nothing from another device changes what a running toy is doing.</p>
+      <label class="inline">Repo <input id="sd-repo" autocomplete="off" spellcheck="false" placeholder="yourname/toydeck-sync"></label>
+      <label class="inline">Access token <input id="sd-token" type="password" autocomplete="off" spellcheck="false"></label>
+      <p class="hint">Get a token on github.com: Settings → Developer settings → Personal access tokens → Fine-grained
+        tokens → Generate new token. <strong>Repository access:</strong> Only select repositories → toydeck-sync.
+        <strong>Permissions:</strong> Contents → Read and write. Use the same token on each device. It's kept on this
+        device only (not in backups).</p>
+      <div class="row wrap">
+        <button type="button" id="sd-save">Save and sync</button>
+        <button type="button" id="sd-now" hidden>Sync now</button>
+        <button type="button" id="sd-off" class="ghost" hidden>Turn off on this device</button>
+      </div>
+      <p id="sd-msg" class="hint" role="status"></p>
+    </form>
+  </dialog>
 
   <dialog id="pattern-dialog" aria-labelledby="pd-h">
     <form method="dialog" class="pd">

@@ -56,7 +56,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 - The grey line at the bottom shows what's being sent and received, which helps if something doesn't work.
 
 ## All toys panel
-**On / Off** (next to STOP ALL): **Off** means this panel has no effect on any toy: no Override, no master level, no function switches, no Play on all. Every toy runs on its own settings. STOP ALL, Edit patterns, Back up and Restore still work. Remembered on this device.
+**On / Off** (next to STOP ALL): **Off** means this panel has no effect on any toy: no Override, no master level, no function switches, no Play on all. Every toy runs on its own settings. STOP ALL, Edit patterns, Sync devices, Back up and Restore still work. Remembered on this device.
 
 Opens **minimized**, like the toy cards: tap **All toys** to open its controls, tap it again to minimize. **STOP ALL** sits at the top right of this panel and **always shows**, minimized or not. It also switches off heat, suction and every extra. If the master level is below 100%, the minimized panel shows an orange **Master 60%** tag.
 - **Turn on by function:** one row per function your toys have, each with its own On/Off: motors (**Vibe 1**, **Vibe 2**, … **Thrust**, **Wiggle**, **Suction**, with a level slider), **Heat**, **Lights**, **Squeeze**, **Ripple**, **Squirt**, and **Suction levels** (Off / level buttons).
@@ -71,11 +71,25 @@ Opens **minimized**, like the toy cards: tap **All toys** to open its controls, 
 - **Pattern for all → Play on all:** starts the chosen pattern on every toy. Choose **Manual (no pattern)** and tap **Set all to Manual** to put every toy back on its sliders (stopped), so you drive them yourself. **Sync** restarts all patterns together.
 - **Edit patterns:** draw your own patterns (drag across the bars). They're shared by all toys.
 - **Connect saved toys:** reconnects every remembered toy it can.
-- **Back up / Restore:** saves your toys, patterns and recordings to a file and loads them on another device. Settings are stored separately on each device, so use this to keep your phone and PC matching.
+- **Sync devices:** keeps your phone and PC the same automatically: toys and their setup, drawn patterns and recordings.
+  It goes through your own **private** GitHub repo (`toydeck-sync`). A change on one device shows on the other within
+  about 30 seconds (or straight away when you switch back to the app). A green dot on the button means sync is
+  working, a red one means it isn't (open it to see why).
+  - **Set up, once per device:** tap **Sync devices**, check the repo (`yourname/toydeck-sync`), paste your access
+    token, tap **Save and sync**. Use the same token on every device. It's kept only on that device.
+  - **Getting the token (once):** github.com → Settings → Developer settings → Personal access tokens → Fine-grained
+    tokens → Generate new token. Repository access: *Only select repositories* → `toydeck-sync`.
+    Permissions: *Contents* → *Read and write*. If it expires, make a new one and paste it on each device.
+  - **What doesn't sync:** anything about what a toy is doing right now (running, mode, levels of a connected toy,
+    heat/suction/extras), plus Override and the panel's On/Off. Nothing from the other device changes a running toy; if
+    you change a running toy's motors on the other device, it stops here and asks you to press Start.
+  - Forgetting a toy on one device forgets it on the other too (unless it's connected there).
+  - **Turn off on this device** stops syncing but keeps everything that's already here.
+- **Back up / Restore:** saves your toys, patterns and recordings to a file and loads them on another device.
 
 ## On a phone
 - The screen stays on while toys are connected.
 - If you switch apps or lock the phone, ToyDeck **stops the toys** (Android pauses the app, and a toy would otherwise keep running with nothing to stop it). Tap **Start** when you're back.
 
 ## Privacy
-Everything stays on your device. There are no accounts, no servers and no tracking. This site is just the app's files.
+Everything stays on your device, unless you turn on **Sync devices**: then your toys' setup, patterns and recordings are also kept in your own private GitHub repo, and nowhere else. There are no ToyDeck accounts, no ToyDeck servers and no tracking. This site is just the app's files.

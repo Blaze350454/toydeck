@@ -43,9 +43,12 @@ const store = {
     try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
   },
   set(key, value) {
-    try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { return false; }
+    onStoreSet?.(key);   // device sync watches its keys
+    return true;
   },
 };
+let onStoreSet = null;
 const statusEl = $('#status');
 let statusTimer;
 function say(msg, sticky = false) {
@@ -1619,6 +1622,294 @@ $('#pd-try').addEventListener('click', () => {
 });
 $('#patterns-btn').addEventListener('click', openEditor);
 
+// ---------- sync between devices (the user's private GitHub repo) ----------
+// toys.json, patterns.json and recordings.json in the repo, each a map id -> item. Every sync is a three-way merge
+// against the last synced copy (toydeck.syncBase): a side that changed an item beats the side that didn't; if both
+// changed it, this device wins. Deletions are real deletions. Toys are keyed by Bluetooth device id, which differs
+// per device: the same toy added on two devices is merged into one by name (the smaller key wins, on both devices).
+// Nothing from the other device changes what a running toy is doing: a connected toy keeps its own slider levels,
+// a running toy whose setup changed is stopped, and Override / panel On/Off are not synced.
+const SYNC_SECTIONS = { toys: 'toys.json', patterns: 'patterns.json', recordings: 'recordings.json' };
+const SYNCED_KEYS = new Set(['toydeck.toys', 'toydeck.patterns', 'toydeck.recordings']);
+const sync = {
+  cfg: store.get('toydeck.syncConfig', null),   // { repo, token } — this device only, never in backups
+  base: store.get('toydeck.syncBase', null),    // last merged copy, per section
+  cache: {},                                    // per file: { etag, data, sha } (304 = unchanged, free on the rate limit)
+  repoOk: false, busy: false, again: false, timer: null, applying: false, rev: 0, last: 0, error: '',
+};
+const stable = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x)
+  ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : x));
+const byId = (list) => Object.fromEntries(list.map((p) => [p.id, p]));
+const toList = (map, order) => [...order.filter((p) => p.id in map).map((p) => map[p.id]),
+  ...Object.values(map).filter((p) => !order.some((o) => o.id === p.id))];
+
+function merge3(base, local, remote) {
+  const out = {};
+  for (const id of new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)])) {
+    const sb = base[id] && stable(base[id]), sl = local[id] && stable(local[id]), sr = remote[id] && stable(remote[id]);
+    let v;
+    if (sl === sr || sr === sb) v = local[id];   // same, or only this device changed it
+    else if (sl === sb) v = remote[id];          // only the other device changed (or deleted) it
+    else v = local[id] ?? remote[id];            // both changed: this device wins; deleted here but edited there: keep the edit
+    if (v !== undefined) out[id] = v;
+  }
+  return out;
+}
+// Same toy added separately on two devices -> one entry. Two toys with one name added on the SAME device are two toys.
+function dedupeToys(merged, local, remote) {
+  const rename = {}, byName = {};
+  for (const key of Object.keys(merged).sort()) {
+    const name = merged[key].name;
+    const other = name && name !== 'Toy' ? byName[name] : undefined;
+    if (other && (key in local) !== (other in local) && (key in remote) !== (other in remote)) {
+      rename[key] = other;
+      delete merged[key];
+    } else if (!other) byName[name] = key;
+  }
+  return rename;
+}
+
+const b64encode = (str) => {
+  const bytes = new TextEncoder().encode(str);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), (c) => c.charCodeAt(0)));
+function ghFetch(path, opts = {}) {
+  // toydeck.syncApi: test hook only (a local fake GitHub); real use never sets it
+  return fetch(`${store.get('toydeck.syncApi', 'https://api.github.com')}/repos/${sync.cfg.repo}${path}`, {
+    cache: 'no-store',
+    ...opts,
+    headers: { Authorization: `Bearer ${sync.cfg.token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', ...opts.headers },
+  });
+}
+function ghError(r, what) {
+  const e = new Error(r.status === 401 ? 'GitHub didn\'t accept the token (wrong or expired)'
+    : r.status === 403 || r.status === 404 ? `the token can't ${what} ${sync.cfg.repo}`
+      : `GitHub answered ${r.status} (${what})`);
+  e.conflict = r.status === 409 || r.status === 422;   // someone else wrote first: read again and retry
+  return e;
+}
+async function readRemote(file) {
+  const c = sync.cache[file];
+  const r = await ghFetch(`/contents/${file}`, { headers: c?.etag ? { 'If-None-Match': c.etag } : {} });
+  if (r.status === 304) return c;
+  if (r.status === 404) return { data: null, sha: null };   // repo access was checked first: the file just isn't there yet
+  if (!r.ok) throw ghError(r, 'read');
+  const j = await r.json();
+  let text = j.encoding === 'base64' && j.content ? b64decode(j.content) : null;
+  if (text == null) {   // over 1 MB: the contents API leaves it out, the blob API doesn't
+    const b = await ghFetch(`/git/blobs/${j.sha}`);
+    if (!b.ok) throw ghError(b, 'read');
+    text = b64decode((await b.json()).content);
+  }
+  const out = { etag: r.headers.get('ETag'), data: JSON.parse(text), sha: j.sha };
+  sync.cache[file] = out;
+  return out;
+}
+async function writeRemote(file, data, sha) {
+  const device = navigator.userAgentData?.platform || (/Android|iPhone|iPad/.test(navigator.userAgent) ? 'phone' : 'computer');
+  const r = await ghFetch(`/contents/${file}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: `ToyDeck sync from ${device}`, content: b64encode(JSON.stringify(data)), ...(sha ? { sha } : {}) }),
+  });
+  if (!r.ok) throw ghError(r, 'write to');
+  sync.cache[file] = { etag: null, data, sha: (await r.json()).content.sha };
+}
+
+async function syncOnce() {
+  if (!sync.repoOk) {
+    const r = await ghFetch('');
+    if (!r.ok) throw ghError(r, 'see');
+    if (!(await r.json()).permissions?.push) throw new Error(`the token can only read ${sync.cfg.repo} (give it Contents: Read and write)`);
+    sync.repoOk = true;
+  }
+  const rev = sync.rev;
+  const base = sync.base ?? { toys: {}, patterns: {}, recordings: {} };
+  const local = { toys: { ...toySettings }, patterns: byId(customPatterns), recordings: byId(recordings) };
+  const remote = {}, sha = {};
+  for (const [name, file] of Object.entries(SYNC_SECTIONS)) {
+    const got = await readRemote(file);
+    sha[name] = got.sha;
+    // A missing file means "nothing new from there", never "everything was deleted".
+    remote[name] = got.data ?? base[name];
+  }
+  const merged = {};
+  for (const name of Object.keys(SYNC_SECTIONS)) merged[name] = merge3(base[name], local[name], remote[name]);
+  const rename = dedupeToys(merged.toys, local.toys, remote.toys);
+  for (const r of Object.values(merged.recordings)) {
+    if (rename[r.toyKey]) merged.recordings[r.id] = { ...r, toyKey: rename[r.toyKey] };
+  }
+  for (const [name, file] of Object.entries(SYNC_SECTIONS)) {
+    if (!sha[name] || stable(merged[name]) !== stable(remote[name])) await writeRemote(file, merged[name], sha[name]);
+  }
+  if (sync.rev !== rev) { const e = new Error('changed while syncing'); e.conflict = true; throw e; }   // merge again with the new change
+  if (Object.keys(SYNC_SECTIONS).some((n) => stable(merged[n]) !== stable(local[n])) || Object.keys(rename).length) applyMerged(merged, rename);
+  sync.base = merged;
+  store.set('toydeck.syncBase', merged);
+}
+
+async function syncNow() {
+  if (!sync.cfg) return;
+  if (sync.busy) { sync.again = true; return; }
+  clearTimeout(sync.timer);
+  sync.timer = null;
+  sync.busy = true;
+  renderSyncStatus();
+  try {
+    for (let attempt = 0; ; attempt++) {
+      try { await syncOnce(); break; } catch (e) { if (!e.conflict || attempt >= 3) throw e; }
+    }
+    sync.error = '';
+    sync.last = Date.now();
+  } catch (e) {
+    sync.error = e.name === 'TypeError' ? 'no connection to GitHub' : e.message;
+    if (/token/.test(sync.error)) sync.repoOk = false;
+  } finally {
+    sync.busy = false;
+    renderSyncStatus();
+    if (sync.again) { sync.again = false; syncNow(); }
+  }
+}
+onStoreSet = (key) => {
+  if (!SYNCED_KEYS.has(key) || sync.applying) return;
+  sync.rev++;
+  if (!sync.cfg) return;
+  clearTimeout(sync.timer);
+  sync.timer = setTimeout(syncNow, 4000);   // a burst of slider moves becomes one upload
+};
+
+// Put a merged copy into this device: settings, cards, patterns, recordings.
+function applyMerged(m, rename) {
+  sync.applying = true;
+  try {
+    for (const [from, to] of Object.entries(rename)) {
+      const toy = toys.get(from);
+      if (toy && !toys.has(to)) { toys.delete(from); toy.key = to; toys.set(to, toy); }
+    }
+    for (const k of Object.keys(toySettings)) if (!(k in m.toys)) delete toySettings[k];
+    Object.assign(toySettings, m.toys);
+    for (const [key, saved] of Object.entries(m.toys)) {
+      const toy = toys.get(key);
+      if (toy) { applySavedSettings(toy, saved); continue; }
+      const t = makeToy(key, saved);
+      t.collapsed = true;
+      toys.set(key, t);
+      buildToyCard(t);
+    }
+    for (const toy of [...toys.values()]) {
+      if (toy.key in m.toys || toy.connected) continue;   // forgotten on the other device; a connected toy stays
+      toys.delete(toy.key);
+      toy.ui?.el.remove();
+    }
+    customPatterns = toList(m.patterns, customPatterns);
+    recordings = toList(m.recordings, recordings);
+    store.set('toydeck.toys', toySettings);
+    store.set('toydeck.patterns', customPatterns);
+    store.set('toydeck.recordings', recordings);
+    for (const toy of toys.values()) if (findPattern(toy.patternId).id !== toy.patternId) toy.patternId = BUILTIN[0].id;   // deleted there
+    refreshPatternSelects();
+    renderGroups();
+    $('#empty').hidden = toys.size > 0;
+    updateCount();
+  } finally {
+    sync.applying = false;
+  }
+}
+
+function applySavedSettings(toy, s) {
+  const setupBefore = stable([toy.motors, toy.slots, toy.motorTypes, toy.minPower]);
+  if (!toy.device && s.name) toy.name = s.name;
+  toy.motors = s.motors ?? toy.motors;
+  toy.slots = fitSlots(s.slots, toy.motors);
+  toy.motorTypes = Array.from({ length: 4 }, (_, i) => (s.motorTypes?.[i] in MOTOR_TYPES ? s.motorTypes[i] : 'vibe'));
+  toy.minPower = s.minPower ?? 0;
+  toy.linked = s.linked ?? true;
+  if (!toy.connected) toy.levels = Array.from({ length: 4 }, (_, i) => s.levels?.[i] ?? 0);
+  toy.hasHeat = s.hasHeat ?? false;
+  toy.hasSuck = s.hasSuck ?? false;
+  toy.suckLevels = s.suckLevels ?? 5;
+  for (const k of Object.keys(EXTRAS)) toy.hasExtra[k] = (s.extras ?? []).includes(k);
+  // Features removed on the other device go off here too; a running toy whose motor setup changed stops.
+  if (!toy.hasHeat && toy.heat) setHeat(toy, false);
+  if ((!toy.hasSuck && toy.suck) || toy.suck > toy.suckLevels) setSuction(toy, toy.hasSuck ? toy.suckLevels : 0);
+  for (const k of extrasOn(toy)) if (!toy.hasExtra[k]) setExtra(toy, k, false);
+  if (toy.running && stable([toy.motors, toy.slots, toy.motorTypes, toy.minPower]) !== setupBefore) {
+    stopToy(toy);
+    say(`${shownName(toy)}'s setup changed on your other device, so it stopped. Press Start.`, true);
+  }
+  const { ui } = toy;
+  if (!ui) return;
+  ui.link.checked = toy.linked;
+  ui.motors.value = String(toy.motors);
+  ui.minpower.value = ui.minOut.value = String(toy.minPower);
+  ui.hasHeat.checked = toy.hasHeat;
+  ui.hasSuck.checked = toy.hasSuck;
+  ui.suckLevels.value = String(toy.suckLevels);
+  ui.el.querySelectorAll('[data-has-extra]').forEach((cb) => { cb.checked = toy.hasExtra[cb.dataset.hasExtra]; });
+  renderToyName(toy);
+  syncToyUI(toy);
+  renderFeatures(toy);
+}
+
+// Sync dialog + status line
+const sd = { dlg: $('#sync-dialog'), repo: $('#sd-repo'), token: $('#sd-token'), msg: $('#sd-msg'), off: $('#sd-off'), now: $('#sd-now') };
+function syncStatusText() {
+  if (!sync.cfg) return 'Sync is off on this device.';
+  if (sync.busy) return 'Syncing…';
+  if (sync.error) return `Sync problem: ${sync.error}.`;
+  if (sync.last) return `Synced ${new Date(sync.last).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.`;
+  return 'Sync is on.';
+}
+function renderSyncStatus() {
+  const text = syncStatusText();
+  const btn = $('#sync-devices');
+  btn.title = text;
+  btn.classList.toggle('sync-bad', !!sync.cfg && !!sync.error);
+  btn.classList.toggle('sync-on', !!sync.cfg && !sync.error);
+  sd.msg.textContent = text;
+  sd.off.hidden = sd.now.hidden = !sync.cfg;
+}
+$('#sync-devices').addEventListener('click', () => {
+  const owner = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : '';
+  sd.repo.value = sync.cfg?.repo ?? (owner ? `${owner}/toydeck-sync` : '');
+  sd.token.value = '';
+  sd.token.placeholder = sync.cfg ? 'Saved on this device (leave empty to keep it)' : 'github_pat_…';
+  renderSyncStatus();
+  sd.dlg.showModal();
+});
+$('#sd-save').addEventListener('click', async () => {
+  const repo = sd.repo.value.trim().replace(/^https:\/\/github\.com\//, '').replace(/\/+$/, '');
+  const token = sd.token.value.trim() || sync.cfg?.token;
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) { sd.msg.textContent = 'Repo should look like yourname/toydeck-sync.'; return; }
+  if (!token) { sd.msg.textContent = 'Paste the access token first.'; return; }
+  if (sync.cfg && sync.cfg.repo !== repo) { sync.base = null; store.set('toydeck.syncBase', null); }
+  sync.cfg = { repo, token };
+  sync.repoOk = false;
+  sync.cache = {};
+  store.set('toydeck.syncConfig', sync.cfg);
+  sd.token.value = '';
+  await syncNow();
+  if (!sync.error) say('Sync is on. Your other devices follow within about 30 seconds.');
+});
+sd.now.addEventListener('click', () => syncNow());
+sd.off.addEventListener('click', () => confirmTap(sd.off, 'Tap again to turn off', () => {
+  sync.cfg = null;
+  sync.base = null;
+  sync.cache = {};
+  try { localStorage.removeItem('toydeck.syncConfig'); localStorage.removeItem('toydeck.syncBase'); } catch { /* storage blocked */ }
+  renderSyncStatus();
+  say('Sync is off on this device. Your settings here are unchanged.');
+}));
+function startSync() {   // every call is a no-op while sync is off on this device
+  renderSyncStatus();
+  syncNow();
+  setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, 30000);
+  document.addEventListener('visibilitychange', () => syncNow());   // back to the app: pick up changes; leaving: send pending ones
+}
+
 // ---------- startup ----------
 // Show every toy connected before, so it's one tap (or zero) to get it back.
 for (const [key, saved] of Object.entries(toySettings)) {
@@ -1628,6 +1919,7 @@ for (const [key, saved] of Object.entries(toySettings)) {
   buildToyCard(toy);
 }
 updateCount();
+startSync();
 
 if (!('bluetooth' in navigator)) {
   $('#unsupported').hidden = false;

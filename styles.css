@@ -210,6 +210,14 @@ button.toy-head:focus-visible { outline: 2px solid var(--accent); outline-offset
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
   transition: block-size 0.2s ease, inline-size 0.2s ease;
 }
+/* Sync devices: a dot shows on (green) or a problem (red) */
+.sync-btn.sync-on::before, .sync-btn.sync-bad::before {
+  content: ''; display: inline-block; inline-size: 0.55em; block-size: 0.55em; border-radius: 50%;
+  margin-inline-end: 0.45em; vertical-align: 0.08em; background: var(--go);
+}
+.sync-btn.sync-bad::before { background: var(--stop); }
+#sd-repo, #sd-token { inline-size: min(100%, 22rem); }
+
 .toy-pic { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; }
 .toy.no-pic .toy-pic-box { inline-size: 44px; block-size: 44px; }
 .toy-title { flex: 1; min-inline-size: 0; display: grid; gap: 0.2rem; }
