@@ -1974,6 +1974,15 @@ restartBtn.addEventListener('click', async () => {
   restartBtn.textContent = 'Restarting…';
   stopAll();
   await new Promise((r) => setTimeout(r, 400));   // let the stop commands reach the toys
+  if (sync.cfg) {   // send this device's changes first; the reloaded app then fetches the other device's
+    restartBtn.textContent = 'Syncing…';
+    const syncFirst = async () => {
+      while (sync.busy) await new Promise((r) => setTimeout(r, 200));   // let a sync already running finish
+      await syncNow();
+    };
+    await Promise.race([syncFirst(), new Promise((r) => setTimeout(r, 10000))]);   // never stuck on a slow network
+    restartBtn.textContent = 'Restarting…';
+  }
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
     await reg?.update();                           // picks up a new version of the offline cache
