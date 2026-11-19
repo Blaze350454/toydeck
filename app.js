@@ -112,6 +112,11 @@ const toys = new Map();   // key -> toy (saved toys too, even when not connected
 let masterLevel = 1;
 const toySettings = store.get('toydeck.toys', {});
 
+// Name shown in the app. Every JoyHub toy's Bluetooth name starts with "J-" (J-Phantom, J-Pinhead...),
+// so it's left off on screen. toy.name keeps the real name: reconnecting and pictures match on it.
+function shownName(toy) {
+  return String(toy.name ?? '').replace(/^J[-_ ]+(?=\S)/i, '') || toy.name;
+}
 function fitSlots(slots, n) {
   const out = (slots ?? []).slice(0, n);
   for (let s = 1; out.length < n; s++) if (!out.includes(s)) out.push(s);
@@ -199,7 +204,7 @@ async function addToy() {
     return; // NotFoundError = user closed the picker
   }
   let toy = toyForDevice(device);
-  if (toy?.connected) { say(`${toy.name} is already connected.`); return; }
+  if (toy?.connected) { say(`${shownName(toy)} is already connected.`); return; }
   if (!toy) {
     toy = makeToy(device.id, toySettings[device.id] ?? { name: device.name });
     toys.set(toy.key, toy);
@@ -222,7 +227,7 @@ async function connectSaved(toy) {
   try {
     device = await navigator.bluetooth.requestDevice({ filters: [{ name: toy.name }], optionalServices: [SERVICE, 'battery_service'] });
   } catch (err) {
-    if (err.name === 'NotFoundError') say(`${toy.name} wasn't picked. Make sure it's switched on and nearby.`);
+    if (err.name === 'NotFoundError') say(`${shownName(toy)} wasn't picked. Make sure it's switched on and nearby.`);
     else say(`Couldn't open the Bluetooth picker: ${err.message}`);
     return;
   }
@@ -264,16 +269,16 @@ async function connectToy(toy, { quiet = false } = {}) {
     toy.suck = 0;
     if (toy.ui) renderFeatures(toy);
     readBattery(toy, server);
-    say(`${toy.name} connected.`);
+    say(`${shownName(toy)} connected.`);
     return true;
   } catch (err) {
     toy.connected = false;
     try { toy.device.gatt.disconnect(); } catch { /* not connected */ }
     if (!quiet) {
       if (err.name === 'NotFoundError' || /FFA0|service/i.test(err.message)) {
-        say(`${toy.name} doesn't look like a supported toy (no FFA0 service).`, true);
+        say(`${shownName(toy)} doesn't look like a supported toy (no FFA0 service).`, true);
       } else {
-        say(`Couldn't connect to ${toy.name}: ${err.message}. Is it on and nearby?`, true);
+        say(`Couldn't connect to ${shownName(toy)}: ${err.message}. Is it on and nearby?`, true);
       }
     }
     return false;
@@ -457,7 +462,7 @@ function startRecording(toy) {
   toy.rec = { start: now, last: now, tracks: Array.from({ length: toy.motors }, () => []) };
   captureRecording(toy, now, true);
   refreshRecUI(toy);
-  say(`Recording ${toy.name}. Move the sliders, then press Stop.`);
+  say(`Recording ${shownName(toy)}. Move the sliders, then press Stop.`);
 }
 function captureRecording(toy, now, first = false) {
   const rec = toy.rec;
@@ -482,7 +487,7 @@ function finishRecording(toy) {
   const same = rec.tracks.every((t) => t.every((v, i) => v === rec.tracks[0][i]));
   toy.recDraft = { tracks: same ? [rec.tracks[0]] : rec.tracks, ms: rec.tracks[0].length * REC_STEP_MS };
   const count = recordings.filter((r) => r.toyKey === toy.key).length + 1;
-  toy.ui.recName.value = `${toy.name} ${count}`;
+  toy.ui.recName.value = `${shownName(toy)} ${count}`;
   toy.ui.recTime.textContent = `${fmtTime(toy.recDraft.ms)} recorded`;
   refreshRecUI(toy);
   toy.ui.recName.focus();
@@ -508,7 +513,7 @@ function keepRecording(toy) {
   toy.running = false;
   setStrength(toy, 100);
   syncToyUI(toy);
-  say(`Saved “${name}” for ${toy.name}. It's selected under Pattern (marked ●) — press Start to play it.`);
+  say(`Saved “${name}” for ${shownName(toy)}. It's selected under Pattern (marked ●) — press Start to play it.`);
 }
 function discardRecording(toy) {
   toy.recDraft = null;
@@ -619,7 +624,7 @@ function forgetToy(toy) {
   toy.ui.el.remove();
   $('#empty').hidden = toys.size > 0;
   updateCount();
-  say(`Forgot ${toy.name} and its recordings.`);
+  say(`Forgot ${shownName(toy)} and its recordings.`);
 }
 
 // ---------- UI ----------
@@ -650,7 +655,7 @@ function toyPicture(name) {
 function renderToyName(toy) {
   const { ui } = toy;
   if (!ui) return;
-  ui.name.textContent = toy.name;
+  ui.name.textContent = shownName(toy);
   const pic = toyPicture(toy.name);
   const src = pic ?? FALLBACK_PIC;
   if (ui.pic.getAttribute('src') !== src) ui.pic.src = src;
@@ -665,7 +670,7 @@ function setCollapsed(toy, collapsed) {
   ui.el.classList.toggle('collapsed', collapsed);
   ui.body.hidden = collapsed;
   ui.head.setAttribute('aria-expanded', String(!collapsed));
-  ui.head.title = collapsed ? `Open ${toy.name}'s controls` : `Minimize ${toy.name}`;
+  ui.head.title = collapsed ? `Open ${shownName(toy)}'s controls` : `Minimize ${shownName(toy)}`;
   ui.hint.textContent = collapsed ? 'Tap to open controls' : '';
 }
 
@@ -1021,7 +1026,7 @@ function fillPatternSelect(sel, toy = null) {
   const groups = [
     ['Built-in', BUILTIN.filter((p) => p.id !== '__try' || !toy || toy.patternId === '__try')],
     ['My patterns', customPatterns],
-    [toy ? `Recorded on ${toy.name}` : '', own],
+    [toy ? `Recorded on ${shownName(toy)}` : '', own],
   ];
   sel.replaceChildren(...groups.filter(([, list]) => list.length).map(([label, list]) => {
     const g = document.createElement('optgroup');
@@ -1063,7 +1068,7 @@ $('#connect-all').addEventListener('click', async () => {
   const withDevice = waiting.filter((t) => t.device);
   await Promise.all(withDevice.map((t) => { t.manualStop = false; return connectToy(t, { quiet: true }); }));
   const still = waiting.filter((t) => !t.connected);
-  if (still.length) say(`Tap Connect on: ${still.map((t) => t.name).join(', ')}. Make sure they're switched on.`, true);
+  if (still.length) say(`Tap Connect on: ${still.map(shownName).join(', ')}. Make sure they're switched on.`, true);
 });
 document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && !e.target.closest('input:not([type="range"]), select, textarea, button, dialog')) {

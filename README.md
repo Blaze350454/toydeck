@@ -25,6 +25,8 @@ playing shows a green **Running** tag; **STOP ALL** still stops it. A toy you've
 
 Pictures are matched by the toy's Bluetooth name (currently **J-Phantom** and **J-Pinhead**) and are stored inside the app, so they work offline; other toys show the ToyDeck icon.
 
+The **J-** that every JoyHub toy name starts with is left off on screen (J-Phantom shows as **Phantom**). Chrome's own Bluetooth list still shows the full name.
+
 | Control | What it does |
 |---|---|
 | **Manual / Pattern** | Choose how the toy is driven. Switching always starts **stopped**. |
