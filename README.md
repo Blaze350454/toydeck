@@ -18,6 +18,12 @@ Web Bluetooth doesn't work in Safari/iPhone or Firefox.
 4. **STOP ALL** (or the **Space** key on a PC) stops every toy: motors, suction and heat.
 
 ## Each toy card
+Toys you've added before open **minimized**: just the toy's picture, name and status. **Tap the card to open
+its controls**, and tap the top of the card (picture and name) to minimize it again. A minimized toy that's
+playing shows a green **Running** tag; **STOP ALL** still stops it. A toy you've just added opens full size.
+
+Pictures are matched by the toy's Bluetooth name (currently **J-Phantom**); other toys show the ToyDeck icon.
+
 | Control | What it does |
 |---|---|
 | **Manual / Pattern** | Choose how the toy is driven. Switching always starts **stopped**. |

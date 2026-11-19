@@ -62,14 +62,21 @@
 
   <template id="toy-tpl">
     <article class="card toy">
-      <div class="row space">
-        <h2 class="toy-name"></h2>
-        <div class="row">
-          <span class="battery" hidden></span>
-          <span class="badge"></span>
-        </div>
-      </div>
+      <button type="button" class="toy-head" aria-expanded="true">
+        <span class="toy-pic-box"><img class="toy-pic" alt="" decoding="async"></span>
+        <span class="toy-title">
+          <span class="toy-name"></span>
+          <span class="toy-status">
+            <span class="badge"></span>
+            <span class="running" hidden>Running</span>
+            <span class="battery" hidden></span>
+          </span>
+          <span class="toy-hint"></span>
+        </span>
+        <span class="chev" aria-hidden="true"></span>
+      </button>
 
+      <div class="toy-body">
       <div class="row space">
         <div class="seg" role="radiogroup" aria-label="Mode">
           <label><input type="radio" value="manual" checked> Manual</label>
@@ -161,6 +168,7 @@
       <div class="row wrap">
         <button type="button" class="connect primary" hidden>Connect</button>
         <button type="button" class="disconnect ghost">Disconnect</button>
+      </div>
       </div>
     </article>
   </template>

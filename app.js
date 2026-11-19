@@ -168,6 +168,7 @@ function makeToy(key, saved = {}) {
     manualStop: false,
     rec: null,        // active recording
     recDraft: null,   // finished recording waiting for a name
+    collapsed: false, // card shows only picture + name; saved toys start this way
   };
 }
 
@@ -179,7 +180,7 @@ function attachDevice(toy, device) {
     watchedDevices.add(device);
     device.addEventListener('gattserverdisconnected', () => onDisconnected(toy));
   }
-  if (toy.ui) toy.ui.name.textContent = toy.name;
+  renderToyName(toy);
 }
 
 // Find the saved toy a picked device belongs to: same id first, then same name.
@@ -531,6 +532,7 @@ function refreshRunUI(toy) {
   if (!btn) return;
   btn.textContent = toy.running ? 'Stop' : 'Start';
   btn.setAttribute('aria-pressed', String(toy.running));
+  toy.ui.running.hidden = !toy.running;
 }
 // Full stop (STOP ALL, leaving the app): motors, suction and heat.
 function stopToy(toy) {
@@ -630,10 +632,51 @@ function setStrength(toy, pct) {
   toy.ui.pstrengthOut.value = `${pct}%`;
 }
 
+// Toy pictures, looked up by the toy's Bluetooth name. To add one: put the image in toys/
+// (and in FILES in sw.js) and add a line here. The key is the name lowercased with only letters and digits.
+const TOY_PICS = {
+  jphantom: 'toys/j-phantom.webp',
+};
+const FALLBACK_PIC = 'icons/icon.svg';
+function toyPicture(name) {
+  const n = String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (TOY_PICS[n]) return TOY_PICS[n];
+  // Names sometimes carry a suffix ("J-Phantom-2", "J-Phantom 01"): longest key the name starts with wins.
+  const key = Object.keys(TOY_PICS).filter((k) => n.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+  return key ? TOY_PICS[key] : null;
+}
+
+function renderToyName(toy) {
+  const { ui } = toy;
+  if (!ui) return;
+  ui.name.textContent = toy.name;
+  const pic = toyPicture(toy.name);
+  const src = pic ?? FALLBACK_PIC;
+  if (ui.pic.getAttribute('src') !== src) ui.pic.src = src;
+  ui.el.classList.toggle('no-pic', !pic);
+  if (ui.head) setCollapsed(toy, toy.collapsed);   // refresh the tooltip with the new name
+}
+
+function setCollapsed(toy, collapsed) {
+  toy.collapsed = collapsed;
+  const { ui } = toy;
+  if (!ui) return;
+  ui.el.classList.toggle('collapsed', collapsed);
+  ui.body.hidden = collapsed;
+  ui.head.setAttribute('aria-expanded', String(!collapsed));
+  ui.head.title = collapsed ? `Open ${toy.name}'s controls` : `Minimize ${toy.name}`;
+  ui.hint.textContent = collapsed ? 'Tap to open controls' : '';
+}
+
 function buildToyCard(toy) {
   const el = tpl.content.firstElementChild.cloneNode(true);
   const ui = {
     el,
+    head: $('.toy-head', el),
+    body: $('.toy-body', el),
+    pic: $('.toy-pic', el),
+    hint: $('.toy-hint', el),
+    running: $('.running', el),
     name: $('.toy-name', el),
     badge: $('.badge', el),
     radios: el.querySelectorAll('.seg input'),
@@ -700,7 +743,11 @@ function buildToyCard(toy) {
     saveToySettings(toy);
     renderFeatures(toy);
   });
-  ui.name.textContent = toy.name;
+  renderToyName(toy);
+  ui.pic.addEventListener('error', () => {
+    if (!ui.pic.src.endsWith(FALLBACK_PIC)) { ui.pic.src = FALLBACK_PIC; ui.el.classList.add('no-pic'); }
+  });
+  ui.head.addEventListener('click', () => setCollapsed(toy, !toy.collapsed));
   const group = `mode-${toy.key}`;
   ui.radios.forEach((r) => {
     r.name = group;
@@ -757,6 +804,7 @@ function buildToyCard(toy) {
   forgetBtn.addEventListener('click', () => confirmTap(forgetBtn, 'Tap again — also deletes its recordings', () => forgetToy(toy)));
   $('#empty').hidden = true;
   toysEl.append(el);
+  setCollapsed(toy, toy.collapsed);
   syncToyUI(toy);
   renderFeatures(toy);
   refreshToyState(toy);
@@ -1178,6 +1226,7 @@ $('#patterns-btn').addEventListener('click', openEditor);
 // Show every toy connected before, so it's one tap (or zero) to get it back.
 for (const [key, saved] of Object.entries(toySettings)) {
   const toy = makeToy(key, saved);
+  toy.collapsed = true;   // toys already in the system open minimized: tap the card to open it
   toys.set(key, toy);
   buildToyCard(toy);
 }

@@ -182,6 +182,60 @@ button.danger-confirm { background: var(--stop); color: #fff; border-color: var(
 .rec-save { padding: 0.5rem; border-radius: 10px; background: var(--track); }
 .toy.offline { opacity: 0.85; }
 
+/* Card header: picture + name + status. Tapping it opens / minimizes the card. */
+.toys { align-items: start; }
+.toy-body { display: grid; gap: 0.75rem; }
+button.toy-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  inline-size: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  text-align: start;
+  font-weight: inherit;
+}
+button.toy-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.toy-pic-box {
+  flex: none;
+  display: block;
+  inline-size: 44px;
+  block-size: 60px;
+  border-radius: 10px;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent);
+  transition: block-size 0.2s ease, inline-size 0.2s ease;
+}
+.toy-pic { display: block; inline-size: 100%; block-size: 100%; object-fit: contain; }
+.toy.no-pic .toy-pic-box { block-size: 44px; }
+.toy-title { flex: 1; min-inline-size: 0; display: grid; gap: 0.2rem; }
+.toy-name { font-size: 1.05rem; font-weight: 700; text-wrap: balance; }
+.toy-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.toy-hint { font-size: 0.8rem; color: var(--muted); }
+.toy-hint:empty { display: none; }
+.running {
+  font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in srgb, var(--go) 22%, var(--card)); color: var(--go);
+}
+.chev {
+  flex: none;
+  inline-size: 0.6rem; block-size: 0.6rem;
+  margin-inline-end: 0.35rem;
+  border-inline-end: 2px solid var(--muted); border-block-end: 2px solid var(--muted);
+  transform: rotate(-135deg);   /* points up: tap to minimize */
+  transition: transform 0.2s ease;
+}
+.toy.collapsed .chev { transform: rotate(45deg); }   /* points down: tap to open */
+.toy.collapsed { cursor: pointer; }
+.toy.collapsed:hover { border-color: var(--accent); }
+.toy.collapsed .toy-pic-box { inline-size: 64px; block-size: 140px; }
+.toy.collapsed.no-pic .toy-pic-box { block-size: 64px; }
+@media (prefers-reduced-motion: reduce) {
+  .toy-pic-box, .chev { transition: none; }
+}
+
 .preview { inline-size: 100%; block-size: 48px; border-radius: 8px; background: var(--track); }
 
 details.settings { border-top: 1px solid var(--line); padding-top: 0.5rem; }
