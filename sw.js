@@ -1,6 +1,6 @@
 // Offline cache: always try the network first (so updates show up immediately),
 // fall back to the cached copy when offline.
-const CACHE = 'toydeck-v18';
+const CACHE = 'toydeck-v19';
 const FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
