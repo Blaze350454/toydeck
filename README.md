@@ -44,10 +44,11 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 | **Connect / Disconnect** | Toys you've added are remembered and show up as cards; Connect brings one back in one tap. |
 
 ## Toy settings (per toy, remembered)
-- **Controls this toy has:** tick what the toy can do: **Heat**, **Suction**, **Lights**, **Squeeze**, **Ripple**, **Squirt**. Each one ticked gets an On/Off button (Suction: level buttons) on the card and a row in the All toys panel. **Suction levels** sets how many level buttons appear (try lower if top levels feel the same).
+- **Controls this toy has:** tick what the toy can do: **Heat**, **Suction levels**, **Lights**, **Squeeze**, **Ripple**, **Squirt**. Each one ticked gets an On/Off button (Suction: level buttons) on the card and a row in the All toys panel. **Suction levels** sets how many level buttons appear (try lower if top levels feel the same).
+  *Suction comes two ways. Some toys take suction **levels** (tick Suction levels). Others drive suction like a motor: give the toy a motor with Type **Suction** instead. **J-Rosella 2** is the second kind: Motors 1, Type Suction, Channel 1 (if nothing happens, try channels 2–4).*
   *Ripple is JoyHub's separate wiggle/ripple switch. If one of the toy's motors is what wiggles, set that motor's Type to Wiggle instead.*
 - **Motors:** how many motors the toy has, **0 to 4**. Choose **0** for a toy with no motors (e.g. suction only): its card then shows just its other controls, and it never gets motor commands.
-- **Motor type:** **Vibe**, **Thrust** or **Wiggle** for each motor. Its slider is named after it, and the All toys panel uses it (below).
+- **Motor type:** **Vibe**, **Thrust**, **Wiggle** or **Suction** for each motor. Its slider is named after it, and the All toys panel uses it (below).
 - **Motor channel:** which of the toy's 4 command positions each motor uses. If a motor slider does nothing, try another channel.
   *J-VividWings: 2 motors on channels 1 and 3.*
 - **Minimum power:** raise it if the toy doesn't move at low slider levels.
@@ -58,7 +59,8 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 **On / Off** (next to STOP ALL): **Off** means this panel has no effect on any toy: no Override, no master level, no function switches, no Play on all. Every toy runs on its own settings. STOP ALL, Edit patterns, Back up and Restore still work. Remembered on this device.
 
 Opens **minimized**, like the toy cards: tap **All toys** to open its controls, tap it again to minimize. **STOP ALL** sits at the top right of this panel and **always shows**, minimized or not. It also switches off heat, suction and every extra. If the master level is below 100%, the minimized panel shows an orange **Master 60%** tag.
-- **Turn on by function:** one row per function your toys have: **Vibe**, **Thrust**, **Wiggle** (level + **Override** + On/Off), **Heat**, **Lights**, **Squeeze**, **Ripple**, **Squirt** (On/Off), **Suction** (Off / levels).
+- **Turn on by function:** one row per function your toys have, each with its own On/Off: motors (**Vibe 1**, **Vibe 2**, … **Thrust**, **Wiggle**, **Suction**, with a level slider), **Heat**, **Lights**, **Squeeze**, **Ripple**, **Squirt**, and **Suction levels** (Off / level buttons).
+  - Motor rows are numbered when any toy has more than one of that kind: **Vibe 1** = every toy's first vibe motor, **Vibe 2** = every toy's second, matching the names on the toy cards.
   - **On** sets that function on every *connected* toy that has it to the row's level and starts it. A stopped toy starts with only that function; its other motors stay off.
   - **Off** turns that function off on every toy. A toy playing a **pattern** stops completely, because a pattern drives all its motors together.
   - **Override** (one button, at the top of the list) covers every motor on every toy. **On** (the default): the row sliders set the levels, over the toys' own sliders; toy sliders show "All toys 80%" and are locked.
@@ -66,7 +68,7 @@ Opens **minimized**, like the toy cards: tap **All toys** to open its controls, 
   - Moving a row's slider switches it on, like a toy's own slider. Override is remembered on this device.
   - Toys that aren't connected are never changed, so nothing starts by surprise when one connects.
 - **Master level:** scales every toy at once.
-- **Pattern for all → Play on all:** starts the chosen pattern on every toy. **Sync** restarts all patterns together.
+- **Pattern for all → Play on all:** starts the chosen pattern on every toy. Choose **Manual (no pattern)** and tap **Set all to Manual** to put every toy back on its sliders (stopped), so you drive them yourself. **Sync** restarts all patterns together.
 - **Edit patterns:** draw your own patterns (drag across the bars). They're shared by all toys.
 - **Connect saved toys:** reconnects every remembered toy it can.
 - **Back up / Restore:** saves your toys, patterns and recordings to a file and loads them on another device. Settings are stored separately on each device, so use this to keep your phone and PC matching.

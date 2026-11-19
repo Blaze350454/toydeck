@@ -114,8 +114,14 @@ const toys = new Map();   // key -> toy (saved toys too, even when not connected
 let masterLevel = 1;
 const toySettings = store.get('toydeck.toys', {});
 // What each motor does. The All toys panel can switch one kind on/off across every toy.
-const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust', wiggle: 'Wiggle' };
-const groupLevels = { vibe: 0.5, thrust: 0.5, wiggle: 0.5 };   // level the All toys panel sets per motor type
+// "Suction" here is a motor channel (A0 03): JoyHub drives a toy's suction that way when the toy's suction has
+// no level steps (e.g. J-Rosella 2). Toys whose suction takes levels use "Suction levels" (A0 07) instead.
+const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust', wiggle: 'Wiggle', suction: 'Suction' };
+// Panel rows for motors are per numbered motor: "vibe1" = every toy's 1st vibe motor, "vibe2" its 2nd, ...
+const MOTOR_FN = /^(vibe|thrust|wiggle|suction)([1-4])$/;
+const isMotorFn = (fn) => MOTOR_FN.test(fn);
+const groupLevels = {};   // panel level per row ("vibe1", "thrust1"...)
+const groupLevel = (fn) => groupLevels[fn] ?? 0.5;
 // Override on: the panel's levels drive every motor on every toy. Off: each toy uses its own sliders.
 let overrideOn = (() => { const v = store.get('toydeck.override', true); return typeof v === 'boolean' ? v : true; })();
 // Panel off: the All toys panel has no effect on any toy (no override, no master level, no group switches).
@@ -419,7 +425,7 @@ function manualLevels(toy) {
 }
 // A motor's level: the All toys panel's level for its type when that type is on Override, else its own slider.
 function effectiveLevel(toy, m) {
-  return panelOverrides() ? groupLevels[toy.motorTypes[m]] : toy.levels[toy.linked ? 0 : m];
+  return panelOverrides() ? groupLevel(slotKey(toy, m)) : toy.levels[toy.linked ? 0 : m];
 }
 function overridden() { return panelOverrides(); }
 
@@ -1135,7 +1141,8 @@ function fillPatternSelect(sel, toy = null) {
   }));
   const valid = toy ? patternsFor(toy) : sharedPatterns();
   const want = toy ? toy.patternId : sel.dataset.value || 'wave';
-  sel.value = valid.some((p) => p.id === want) ? want : BUILTIN[0].id;
+  if (!toy) sel.prepend(new Option('Manual (no pattern)', '__manual'));   // Pattern for all: back to sliders
+  sel.value = !toy && want === '__manual' ? want : valid.some((p) => p.id === want) ? want : BUILTIN[0].id;
   if (toy) toy.patternId = sel.value;
 }
 function refreshPatternSelects() {
@@ -1183,19 +1190,29 @@ setMasterCollapsed(true);
 
 // ---------- functions across all toys ("Turn on by function" in the All toys panel) ----------
 // Only connected toys are ever changed, so nothing starts by surprise when a toy connects later.
+// Which panel row a motor belongs to: its type plus its number among the toy's motors of that type.
+function slotKey(toy, m) {
+  const type = toy.motorTypes[m];
+  let n = 0;
+  for (let i = 0; i <= m; i++) if (toy.motorTypes[i] === type) n++;
+  return `${type}${n}`;
+}
+function motorsOfFn(toy, fn) {
+  return Array.from({ length: toy.motors }, (_, m) => m).filter((m) => slotKey(toy, m) === fn);
+}
 function motorsOfType(toy, type) {
   return Array.from({ length: toy.motors }, (_, m) => m).filter((m) => toy.motorTypes[m] === type);
 }
 function liveToys() { return [...toys.values()].filter((t) => t.connected); }
 function typeActive(toy, type) {
-  const ms = motorsOfType(toy, type);
+  const ms = motorsOfFn(toy, type);
   if (!toy.connected || !toy.running || !ms.length) return false;
   if (toy.mode === 'pattern') return true;
   return ms.some((m) => toy.enabled[toy.linked ? 0 : m] && effectiveLevel(toy, m) > 0);
 }
-// A toy whose motors are of different kinds needs separate sliders to run one kind alone.
-function separateIfMixed(toy) {
-  if (!toy.linked || new Set(toy.motorTypes.slice(0, toy.motors)).size < 2) return;
+// A linked toy needs separate sliders to run only some of its motors.
+function separateIfMixed(toy, ms) {
+  if (!toy.linked || ms.length >= toy.motors) return;
   toy.linked = false;
   if (toy.ui) toy.ui.link.checked = false;
 }
@@ -1207,18 +1224,18 @@ function refreshToyCard(toy) {
 function groupMotorsOn(type) {
   if (!panelOn) return;
   for (const toy of liveToys()) {
-    const ms = motorsOfType(toy, type);
+    const ms = motorsOfFn(toy, type);
     if (!ms.length) continue;
     if (toy.rec) finishRecording(toy);
     const wasRunning = toy.running && toy.mode === 'manual';
     if (toy.mode !== 'manual') { toy.mode = 'manual'; toy.phase = 0; }   // the panel drives the sliders
-    separateIfMixed(toy);
+    separateIfMixed(toy, ms);
     for (let m = 0; m < toy.motors; m++) {
       const i = toy.linked ? 0 : m;
-      if (toy.motorTypes[m] === type) {
+      if (ms.includes(m)) {   // this row's motor(s)
         toy.enabled[i] = true;
         // Override off = the toy's own slider; give it a starting level if it's at 0.
-        if (!overrideOn && toy.levels[i] === 0) toy.levels[i] = groupLevels[type];
+        if (!overrideOn && toy.levels[i] === 0) toy.levels[i] = groupLevel(type);
       } else if (!wasRunning) toy.enabled[i] = false;   // a stopped toy starts with only this function
     }
     if (toy.linked) { toy.enabled.fill(true); toy.levels.fill(toy.levels[0]); }
@@ -1229,10 +1246,10 @@ function groupMotorsOn(type) {
 function groupMotorsOff(type) {
   if (!panelOn) return;
   for (const toy of liveToys()) {
-    const ms = motorsOfType(toy, type);
+    const ms = motorsOfFn(toy, type);
     if (!ms.length || !toy.running) continue;
     if (toy.mode === 'pattern') { setRunning(toy, false); continue; }   // a pattern drives all motors together
-    separateIfMixed(toy);
+    separateIfMixed(toy, ms);
     if (toy.linked) toy.enabled.fill(false); else ms.forEach((m) => { toy.enabled[m] = false; });
     if (!toy.enabled.slice(0, toy.motors).some(Boolean)) toy.running = false;
     refreshToyCard(toy);
@@ -1244,7 +1261,7 @@ function groupMotorsLevel(type, level) {
   groupLevels[type] = level;
   const active = liveToys().some((t) => typeActive(t, type) && t.mode === 'manual');
   if (!active && level > 0) groupMotorsOn(type);   // moving the slider switches it on, like a toy's slider
-  for (const toy of toys.values()) if (toy.ui && motorsOfType(toy, type).length) renderSliders(toy);
+  for (const toy of toys.values()) if (toy.ui && motorsOfFn(toy, type).length) renderSliders(toy);
 }
 function setOverride(on) {
   overrideOn = on;
@@ -1275,7 +1292,10 @@ $('#panel-power').addEventListener('click', () => setPanelOn(!panelOn));
 function groupFunctions() {
   const all = [...toys.values()];
   const fns = [];
-  for (const type of Object.keys(MOTOR_TYPES)) if (all.some((t) => motorsOfType(t, type).length)) fns.push(type);
+  for (const type of Object.keys(MOTOR_TYPES)) {
+    const most = Math.max(0, ...all.map((t) => motorsOfType(t, type).length));
+    for (let n = 1; n <= most; n++) fns.push(`${type}${n}`);
+  }
   if (all.some((t) => t.hasHeat)) fns.push('heat');
   const suck = Math.max(0, ...all.filter((t) => t.hasSuck).map((t) => t.suckLevels));
   if (suck) fns.push(`suck${suck}`);
@@ -1283,13 +1303,13 @@ function groupFunctions() {
   return fns;
 }
 function hasFunction(toy, fn) {
-  if (fn in MOTOR_TYPES) return motorsOfType(toy, fn).length > 0;
+  if (isMotorFn(fn)) return motorsOfFn(toy, fn).length > 0;
   if (fn === 'heat') return toy.hasHeat;
   if (fn in EXTRAS) return toy.hasExtra[fn];
   return toy.hasSuck;
 }
 function functionOn(toy, fn) {
-  if (fn in MOTOR_TYPES) return typeActive(toy, fn);
+  if (isMotorFn(fn)) return typeActive(toy, fn);
   if (fn === 'heat') return toy.heat;
   if (fn in EXTRAS) return toy.extraOn[fn];
   return toy.suck > 0;
@@ -1302,21 +1322,25 @@ function renderGroups() {
   if (sig !== groupSig) {
     groupSig = sig;
     $('#groups').hidden = !fns.length;
-    box.replaceChildren(...fns.map(buildGroupRow));
+    box.replaceChildren(...fns.map((fn) => buildGroupRow(fn, fns)));
   }
   refreshGroups();
 }
 function onOffButton(label) {
   return `<button type="button" class="motor-toggle group-toggle" aria-label="${label} on all toys, on or off">Off</button>`;
 }
-function buildGroupRow(fn) {
+function buildGroupRow(fn, fns) {
   const row = document.createElement('div');
   row.dataset.fn = fn;
-  const name = fn in MOTOR_TYPES ? MOTOR_TYPES[fn] : fn === 'heat' ? 'Heat' : fn in EXTRAS ? EXTRAS[fn].label : 'Suction';
+  let name = fn === 'heat' ? 'Heat' : fn in EXTRAS ? EXTRAS[fn].label : 'Suction levels';
+  if (isMotorFn(fn)) {
+    const [, type, n] = fn.match(MOTOR_FN);
+    name = fns.includes(`${type}2`) ? `${MOTOR_TYPES[type]} ${n}` : MOTOR_TYPES[type];   // "Vibe 1", or just "Thrust"
+  }
   const head = `<span class="group-name">${name} <small class="group-count muted"></small></span>`;
-  if (fn in MOTOR_TYPES) {
+  if (isMotorFn(fn)) {
     row.className = 'motor-row group-row group-motor';
-    const pct = Math.round(groupLevels[fn] * 100);
+    const pct = Math.round(groupLevel(fn) * 100);
     row.innerHTML = `<label class="slider-label"><span>${head}<output>${pct}%</output></span>
       <input type="range" min="0" max="100" value="${pct}" aria-label="${name} level on all toys">
       <small class="group-own muted">Each toy uses its own ${name} slider (Override is off)</small></label>
@@ -1373,7 +1397,7 @@ function refreshGroups() {
     const text = have.length ? `· ${have.length} toy${have.length > 1 ? 's' : ''}` : '· none connected';
     if (count.textContent !== text) count.textContent = text;
     row.querySelectorAll('.group-toggle, .levels button, input').forEach((c) => { c.disabled = !have.length || !panelOn; });
-    if (fn in MOTOR_TYPES) row.classList.toggle('own-levels', !overrideOn);   // Override off: hide the panel slider
+    if (isMotorFn(fn)) row.classList.toggle('own-levels', !overrideOn);   // Override off: hide the panel slider
     const toggle = $('.group-toggle', row);
     if (toggle) {
       const on = have.some((t) => functionOn(t, fn));
@@ -1393,10 +1417,22 @@ setInterval(refreshGroups, 250);
 renderGroups();
 setPanelOn(panelOn);   // apply the remembered On/Off
 $('#stop-all').addEventListener('click', stopAll);
-$('#all-pattern').addEventListener('change', (e) => { e.target.dataset.value = e.target.value; });
+function refreshApplyAllLabel() {
+  $('#apply-all').textContent = $('#all-pattern').value === '__manual' ? 'Set all to Manual' : 'Play on all';
+}
+$('#all-pattern').addEventListener('change', (e) => { e.target.dataset.value = e.target.value; refreshApplyAllLabel(); });
 $('#apply-all').addEventListener('click', () => {
   if (!panelOn) return;
   const id = $('#all-pattern').value;
+  if (id === '__manual') {   // every toy back to its sliders, stopped (like switching mode on a card)
+    for (const toy of toys.values()) {
+      if (toy.motors === 0 || toy.mode === 'manual') continue;
+      if (toy.rec) finishRecording(toy);
+      toy.mode = 'manual'; toy.phase = 0; toy.running = false; syncToyUI(toy);
+    }
+    say('All toys are on Manual. Turn things on with the buttons above, or Start on each toy.');
+    return;
+  }
   for (const toy of toys.values()) {
     if (toy.motors === 0) continue;
     if (toy.rec) finishRecording(toy);

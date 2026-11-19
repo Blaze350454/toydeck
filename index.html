@@ -151,7 +151,7 @@
           <button type="button" class="heat-toggle motor-toggle" aria-pressed="false">Off</button>
         </div>
         <div class="feature suck-row" hidden>
-          <span>Suction</span>
+          <span>Suction levels</span>
           <div class="levels" role="group" aria-label="Suction level"></div>
         </div>
         <div class="extra-rows"></div>
@@ -162,7 +162,7 @@
         <fieldset class="extras">
           <legend>Controls this toy has</legend>
           <label class="check"><input type="checkbox" class="has-heat"> Heat</label>
-          <label class="check"><input type="checkbox" class="has-suck"> Suction</label>
+          <label class="check"><input type="checkbox" class="has-suck"> Suction levels</label>
           <label class="inline">Suction levels
             <select class="suck-levels">
               <option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="10">10</option>
@@ -173,6 +173,8 @@
           <label class="check"><input type="checkbox" data-has-extra="ripple"> Ripple</label>
           <label class="check"><input type="checkbox" data-has-extra="squirt"> Squirt</label>
         </fieldset>
+        <p class="hint">Suction levels = suction with level buttons. If it does nothing, your toy's suction is a motor:
+          set Motors to 1 and that motor's Type to Suction (try each channel).</p>
         <p class="hint">Ripple = JoyHub's separate wiggle/ripple switch. If one of the toy's motors is what wiggles, set that motor's Type to Wiggle instead.</p>
         <label class="inline">Motors
           <select class="motors">
