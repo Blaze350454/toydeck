@@ -35,7 +35,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 | **[ ] slider limits** | Each motor slider has a **[** at its left end and a **]** at its right. Drag them in to set the lowest and highest level that slider can reach (the part outside is greyed); the slider then can't go past them, so a slip can't overshoot while you play or record. While you hold a bracket a bubble shows **Min N%** / **Max N%**; holding the slider shows its level. Tap the **padlock** at the right end of the motor's row, after On/Off (orange = unlocked, green = locked), to lock its limits (the brackets then can't be moved, the slider still works); tap again to unlock. Saved per motor and synced. Patterns aren't limited. |
 | **Same level for all motors** | One slider (and one On/Off) for every motor. Its [ ] set the limits for every motor. |
 | **● Record pattern** | Records your slider moves live (each motor separately) until you tap **■ Stop recording**, then name and **Save** it. Recordings belong to that toy and appear in its Pattern list marked **●**. Recording starts the toy for you. |
-| **Pattern** list | Built-in patterns, your drawn patterns (★) and this toy's recordings (●). **Delete recording** removes a recording (tap twice). |
+| **Pattern** list | Built-in patterns, your drawn patterns (★) and this toy's recordings (●); your own are listed A–Z. **Delete recording** removes a recording (tap twice). |
 | **Strength + On/Off** | How strong the pattern plays. Off = toy goes quiet while the pattern keeps its place. |
 | **Speed + On/Off** | How fast the pattern plays. Off = the pattern freezes on its current step and holds it. |
 | **Offset motors** | On multi-motor toys, the motors take turns instead of moving together. |
@@ -52,7 +52,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 - **Motor type:** **Vibe**, **Thrust**, **Wiggle**, **Flipper** or **Suction** for each motor. Sliders are coloured by type: Vibe green, Thrust orange, Wiggle purple, Flipper cyan, Suction pink. A one-motor flipper toy: Motors 1, Type Flipper. Its slider is named after it, and the All toys panel uses it (below).
 - **Motor channel:** which of the toy's 4 command positions each motor uses. If a motor slider does nothing, try another channel.
   *J-VividWings: 2 motors on channels 1 and 3.*
-- **Minimum power:** one slider per motor, named after it (Vibe, Wiggle, Thrust…). Raise a motor's minimum if it stops or stutters at low levels while the toy's other motors keep going; 1% on that motor then starts from its minimum.
+- **Minimum power:** one slider per motor, named after it (Vibe, Wiggle, Thrust…). Raise a motor's minimum if it stops or stutters at low levels while the toy's other motors keep going; 1% on that motor then starts from its minimum. Each has a padlock (orange = unlocked, green = locked) so a set minimum can't be moved by accident.
 - **Forget this toy:** removes it and its recordings (tap twice).
 - The grey line at the bottom shows what's being sent and received, which helps if something doesn't work.
 

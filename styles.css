@@ -295,6 +295,8 @@ dialog::backdrop { background: #0008; }
 .group-name small { font-weight: 400; font-size: 0.8rem; }
 .slot-map { display: grid; gap: 0.4rem; }
 .minpowers { display: grid; gap: 0.4rem; }
+.min-row { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 0.5rem; }
+.min-locked input[type="range"] { opacity: 0.55; cursor: not-allowed; }
 .slot-map strong { font-size: 0.9rem; min-inline-size: 4.5rem; }
 /* Motor rows in the panel: slider, Override, On/Off. Override off hides the slider (each toy uses its own). */
 .group-own { display: none; font-size: 0.8rem; }

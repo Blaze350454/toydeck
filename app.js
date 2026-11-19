@@ -155,10 +155,11 @@ const readLimits = (s) => Array.from({ length: 4 }, (_, i) => {
   return [lo, hi];
 });
 const readLimitLocks = (s) => Array.from({ length: 4 }, (_, i) => s?.limitLocks?.[i] === true);   // 🔒: brackets can't move
+const readMinLocks = (s) => Array.from({ length: 4 }, (_, i) => s?.minLocks?.[i] === true);       // 🔒: minimum power can't move
 const limitLevel = (toy, m, v) => clamp(v, toy.limits[m][0] / 100, toy.limits[m][1] / 100);
 function saveToySettings(toy) {
   toySettings[toy.key] = {
-    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], limits: toy.limits, limitLocks: toy.limitLocks, linked: toy.linked, levels: toy.levels, name: toy.name,
+    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], limits: toy.limits, limitLocks: toy.limitLocks, minLocks: toy.minLocks, linked: toy.linked, levels: toy.levels, name: toy.name,
     hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels, motorTypes: toy.motorTypes,
     extras: Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]),
   };
@@ -178,6 +179,7 @@ function makeToy(key, saved = {}) {
     minPowers: readMinPowers(saved),   // per motor
     limits: readLimits(saved),         // per motor slider [low, high] %
     limitLocks: readLimitLocks(saved), // per motor: limits locked
+    minLocks: readMinLocks(saved),     // per motor: minimum power locked
     // Slider positions are remembered; motors always start Off so nothing runs on connect.
     levels: Array.from({ length: 4 }, (_, i) => saved.levels?.[i] ?? 0),
     enabled: [true, true, true, true],   // per-motor On/Off; the card's Start/Stop is the main switch
@@ -1198,7 +1200,27 @@ function renderMinPowers(toy) {
     input.setAttribute('aria-label', `${motorTitle(toy, m)} minimum power`);
     input.addEventListener('input', () => { toy.minPowers[m] = +input.value; out.value = input.value; });
     input.addEventListener('change', () => saveToySettings(toy));
-    row.append(label);
+    // Padlock: locked = this minimum can't be changed by accident (same orange/green padlock as the slider limits)
+    const lock = document.createElement('button');
+    lock.type = 'button';
+    lock.className = 'lim-lock';
+    const drawLock = () => {
+      const on = toy.minLocks[m];
+      lock.innerHTML = LOCK_SVG(on);
+      lock.setAttribute('aria-pressed', String(on));
+      lock.setAttribute('aria-label', `${motorTitle(toy, m)} minimum ${on ? 'locked: tap to unlock' : 'unlocked: tap to lock'}`);
+      lock.title = on ? 'Minimum locked — tap to unlock' : 'Lock this minimum';
+      input.disabled = on;
+      row.classList.toggle('min-locked', on);
+    };
+    lock.addEventListener('click', () => {
+      toy.minLocks[m] = !toy.minLocks[m];
+      drawLock();
+      saveToySettings(toy);
+    });
+    drawLock();
+    row.classList.add('min-row');
+    row.append(label, lock);
     return row;
   }));
 }
@@ -1325,11 +1347,13 @@ function drawPreview(toy) {
   ctx.globalAlpha = 1;
 }
 
+// Saved patterns and recordings are listed A–Z ("Pattern 2" before "Pattern 10"); built-ins keep their order.
+const byName = (list) => [...list].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base', numeric: true }));
 function fillPatternSelect(sel, toy = null) {
-  const own = toy ? recordings.filter((r) => r.toyKey === toy.key) : [];
+  const own = toy ? byName(recordings.filter((r) => r.toyKey === toy.key)) : [];
   const groups = [
     ['Built-in', BUILTIN.filter((p) => p.id !== '__try' || !toy || toy.patternId === '__try')],
-    ['My patterns', customPatterns],
+    ['My patterns', byName(customPatterns)],
     [toy ? `Recorded on ${shownName(toy)}` : '', own],
   ];
   sel.replaceChildren(...groups.filter(([, list]) => list.length).map(([label, list]) => {
@@ -1703,7 +1727,7 @@ let editing = null; // { id, name, stepMs, steps }
 
 function openEditor() {
   fillEditorSelect();
-  if (customPatterns.length) loadIntoEditor(customPatterns[0]);
+  if (customPatterns.length) loadIntoEditor(byName(customPatterns)[0]);
   else newPattern();
   pd.msg.textContent = '';
   dlg.showModal();
@@ -1711,7 +1735,7 @@ function openEditor() {
 function fillEditorSelect() {
   pd.select.replaceChildren(
     new Option('— new pattern —', ''),
-    ...customPatterns.map((p) => new Option(p.name, p.id)),
+    ...byName(customPatterns).map((p) => new Option(p.name, p.id)),
     ...BUILTIN.filter((p) => p.id !== '__try').map((p) => new Option(`${p.name} (copy)`, `copy:${p.id}`)),
   );
 }
@@ -2011,6 +2035,7 @@ function applySavedSettings(toy, s) {
   toy.minPowers = readMinPowers(s);
   toy.limits = readLimits(s);
   toy.limitLocks = readLimitLocks(s);
+  toy.minLocks = readMinLocks(s);
   toy.linked = s.linked ?? true;
   if (!toy.connected) toy.levels = Array.from({ length: 4 }, (_, i) => s.levels?.[i] ?? 0);
   toy.hasHeat = s.hasHeat ?? false;
