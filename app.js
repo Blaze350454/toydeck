@@ -693,7 +693,8 @@ const TOY_PICS = {
 };
 const FALLBACK_PIC = 'icons/icon.svg';
 function toyPicture(name) {
-  const n = String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  let n = String(name ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!TOY_PICS[n] && !Object.keys(TOY_PICS).some((k) => n.startsWith(k))) n = 'j' + n;   // named without "J-" ("Petalwish2")
   if (TOY_PICS[n]) return TOY_PICS[n];
   // Names sometimes carry a suffix ("J-Phantom-2", "J-Phantom 01"): longest key the name starts with wins.
   const key = Object.keys(TOY_PICS).filter((k) => n.startsWith(k)).sort((a, b) => b.length - a.length)[0];
