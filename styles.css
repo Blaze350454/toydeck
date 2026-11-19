@@ -287,3 +287,16 @@ dialog::backdrop { background: #0008; }
 .group-name small { font-weight: 400; font-size: 0.8rem; }
 .slot-map { display: grid; gap: 0.4rem; }
 .slot-map strong { font-size: 0.9rem; min-inline-size: 4.5rem; }
+/* Motor rows in the panel: slider, Override, On/Off. Override off hides the slider (each toy uses its own). */
+.group-motor { grid-template-columns: 1fr auto auto; }
+.group-own { display: none; font-size: 0.8rem; }
+.group-motor.own-levels input[type="range"], .group-motor.own-levels output { display: none; }
+.group-motor.own-levels .group-own { display: block; padding-block: 0.6rem; }
+.override-toggle { font-size: 0.85rem; font-weight: 600; padding-inline: 0.6rem; }
+.override-toggle[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 22%, var(--card)); border-color: var(--accent); }
+.override-toggle[aria-pressed="false"] { color: var(--muted); }
+/* A toy's slider while the All toys panel overrides it */
+.motor-row.overridden input[type="range"] { opacity: 0.5; cursor: not-allowed; }
+.motor-row.overridden output { color: var(--accent); font-weight: 600; }
+.extra-rows { display: grid; gap: 0.6rem; }
+.extra-rows:empty { display: none; }

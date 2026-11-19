@@ -21,11 +21,13 @@ const HEAT_OFF = 'a00400000000';
 const SUCK_OFF = 'a00700000000';
 const suckCmd = (level) => (level > 0 ? `a0070100${level.toString(16).padStart(2, '0')}ff` : SUCK_OFF);
 const BATTERY_POLL_MS = 60000;
+// On/off extras. "Ripple" is JoyHub's separate wiggle/ripple command (A0 25), not a motor: a motor that
+// wiggles is set up as motor Type "Wiggle" instead.
 const EXTRAS = {
-  light:   { on: 'a014010001ff', off: 'a01400000000' },
-  squeeze: { on: 'a00d000001ff', off: 'a00d00000000' },
-  wiggle:  { on: 'a025010001ff', off: 'a02500000000' },
-  squirt:  { on: 'a024010001ff', off: 'a02400000000' },
+  light:   { label: 'Lights',  on: 'a014010001ff', off: 'a01400000000' },
+  squeeze: { label: 'Squeeze', on: 'a00d000001ff', off: 'a00d00000000' },
+  ripple:  { label: 'Ripple',  on: 'a025010001ff', off: 'a02500000000' },
+  squirt:  { label: 'Squirt',  on: 'a024010001ff', off: 'a02400000000' },
 };
 
 // ---------- small helpers ----------
@@ -112,8 +114,10 @@ const toys = new Map();   // key -> toy (saved toys too, even when not connected
 let masterLevel = 1;
 const toySettings = store.get('toydeck.toys', {});
 // What each motor does. The All toys panel can switch one kind on/off across every toy.
-const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust' };
-const groupLevels = { vibe: 0.5, thrust: 0.5 };   // level the All toys panel sets per motor type
+const MOTOR_TYPES = { vibe: 'Vibe', thrust: 'Thrust', wiggle: 'Wiggle' };
+const groupLevels = { vibe: 0.5, thrust: 0.5, wiggle: 0.5 };   // level the All toys panel sets per motor type
+// Override on: the panel's level drives that motor type on every toy. Off: each toy uses its own slider.
+const groupOverride = { vibe: true, thrust: true, wiggle: true, ...store.get('toydeck.override', {}) };
 let groupSig = '';                                // which function rows the panel currently shows
 
 // Name shown in the app. Every JoyHub toy's Bluetooth name starts with "J-" (J-Phantom, J-Pinhead...),
@@ -130,6 +134,7 @@ function saveToySettings(toy) {
   toySettings[toy.key] = {
     motors: toy.motors, slots: toy.slots, minPower: toy.minPower, linked: toy.linked, levels: toy.levels, name: toy.name,
     hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels, motorTypes: toy.motorTypes,
+    extras: Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]),
   };
   store.set('toydeck.toys', toySettings);
   renderGroups();
@@ -160,6 +165,8 @@ function makeToy(key, saved = {}) {
     phase: 0,
     hasHeat: saved.hasHeat ?? false,
     hasSuck: saved.hasSuck ?? false,
+    hasExtra: Object.fromEntries(Object.keys(EXTRAS).map((k) => [k, (saved.extras ?? []).includes(k)])),
+    extraOn: Object.fromEntries(Object.keys(EXTRAS).map((k) => [k, false])),   // extras always start off
     suckLevels: saved.suckLevels ?? 5,
     heat: false,      // heat/suction always start off
     suck: 0,
@@ -272,6 +279,7 @@ async function connectToy(toy, { quiet = false } = {}) {
     toy.lastHex = '';
     toy.queue = [];
     toy.heat = false;
+    for (const k of Object.keys(EXTRAS)) toy.extraOn[k] = false;
     toy.suck = 0;
     if (toy.ui) renderFeatures(toy);
     readBattery(toy, server);
@@ -403,8 +411,17 @@ function motorByte(toy, level) {
 function manualLevels(toy) {
   return Array.from({ length: toy.motors }, (_, m) => {
     const i = toy.linked ? 0 : m;
-    return toy.running && toy.enabled[i] ? toy.levels[i] : 0;
+    return toy.running && toy.enabled[i] ? effectiveLevel(toy, m) : 0;
   });
+}
+// A motor's level: the All toys panel's level for its type when that type is on Override, else its own slider.
+function effectiveLevel(toy, m) {
+  const type = toy.motorTypes[m];
+  return groupOverride[type] ? groupLevels[type] : toy.levels[toy.linked ? 0 : m];
+}
+function overridden(toy, m) {
+  if (!toy.linked) return !!groupOverride[toy.motorTypes[m]];
+  return toy.motorTypes.slice(0, toy.motors).every((t) => groupOverride[t]);   // one shared slider
 }
 
 function currentLevels(toy) {
@@ -551,8 +568,10 @@ function stopToy(toy) {
   toy.running = false;   // keeps mode, sliders and motor On/Off as they were; Start carries on
   const heatWasOn = toy.heat;
   const suckWasOn = toy.suck > 0;
+  const extrasWereOn = extrasOn(toy);
   toy.heat = false;
   toy.suck = 0;
+  for (const k of extrasWereOn) toy.extraOn[k] = false;
   syncToyUI(toy);
   renderFeatures(toy);
   if (!toy.connected) return;
@@ -561,7 +580,9 @@ function stopToy(toy) {
   send(toy, STOP_BYTES, true);
   if (suckWasOn) sendRepeated(toy, SUCK_OFF);
   if (heatWasOn) sendRepeated(toy, HEAT_OFF);
+  for (const k of extrasWereOn) sendRepeated(toy, EXTRAS[k].off);
 }
+function extrasOn(toy) { return Object.keys(EXTRAS).filter((k) => toy.extraOn[k]); }
 function stopAll() {
   for (const toy of toys.values()) stopToy(toy);
   say('All toys stopped.');
@@ -575,6 +596,7 @@ window.addEventListener('pagehide', () => {
         c.writeValueWithoutResponse(STOP_BYTES);
         if (toy.suck) c.writeValueWithoutResponse(hexToBytes(SUCK_OFF));
         if (toy.heat) c.writeValueWithoutResponse(hexToBytes(HEAT_OFF));
+        for (const k of extrasOn(toy)) c.writeValueWithoutResponse(hexToBytes(EXTRAS[k].off));
       } catch { /* page is going away */ }
     }
   }
@@ -585,7 +607,11 @@ function sendRepeated(toy, hex) {
   const bytes = hexToBytes(hex);
   for (let i = 0; i < 3; i++) send(toy, bytes, true);
 }
-function sendExtra(toy, name, on) { sendRepeated(toy, on ? EXTRAS[name].on : EXTRAS[name].off); }
+function setExtra(toy, name, on) {
+  toy.extraOn[name] = on;
+  sendRepeated(toy, on ? EXTRAS[name].on : EXTRAS[name].off);
+  renderFeatures(toy);
+}
 function setHeat(toy, on) {
   toy.heat = on;
   sendRepeated(toy, on ? HEAT_ON : HEAT_OFF);
@@ -605,6 +631,7 @@ function disconnectToy(toy) {
     const cmds = [STOP_BYTES];
     if (toy.suck) cmds.push(hexToBytes(SUCK_OFF));
     if (toy.heat) cmds.push(hexToBytes(HEAT_OFF));
+    for (const k of extrasOn(toy)) { cmds.push(hexToBytes(EXTRAS[k].off)); toy.extraOn[k] = false; }
     toy.heat = false;
     toy.suck = 0;
     (async () => {
@@ -807,8 +834,15 @@ function buildToyCard(toy) {
   ui.minOut.value = String(toy.minPower);
   ui.minpower.addEventListener('input', () => { toy.minPower = +ui.minpower.value; ui.minOut.value = ui.minpower.value; });
   ui.minpower.addEventListener('change', () => saveToySettings(toy));
-  el.querySelectorAll('[data-extra]').forEach((cb) => {
-    cb.addEventListener('change', () => sendExtra(toy, cb.dataset.extra, cb.checked));
+  el.querySelectorAll('[data-has-extra]').forEach((cb) => {
+    const k = cb.dataset.hasExtra;
+    cb.checked = toy.hasExtra[k];
+    cb.addEventListener('change', () => {
+      toy.hasExtra[k] = cb.checked;
+      if (!cb.checked && toy.extraOn[k]) setExtra(toy, k, false);
+      saveToySettings(toy);
+      renderFeatures(toy);
+    });
   });
   ui.connect.addEventListener('click', () => connectSaved(toy));
   ui.disconnect.addEventListener('click', () => disconnectToy(toy));
@@ -825,7 +859,24 @@ function buildToyCard(toy) {
 function renderFeatures(toy) {
   const { ui } = toy;
   if (!ui) return;
-  ui.features.hidden = !toy.hasHeat && !toy.hasSuck;
+  const extras = Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]);
+  ui.features.hidden = !toy.hasHeat && !toy.hasSuck && !extras.length;
+  const extraButtons = extras.map((k) => {
+    const row = document.createElement('div');
+    row.className = 'feature';
+    const name = document.createElement('span');
+    name.textContent = EXTRAS[k].label;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'motor-toggle';
+    b.textContent = toy.extraOn[k] ? 'On' : 'Off';
+    b.setAttribute('aria-pressed', String(toy.extraOn[k]));
+    b.setAttribute('aria-label', `${EXTRAS[k].label} on or off`);
+    b.addEventListener('click', () => setExtra(toy, k, !toy.extraOn[k]));
+    row.append(name, b);
+    return row;
+  });
+  $('.extra-rows', ui.el).replaceChildren(...extraButtons.map((r) => r));
   ui.heatRow.hidden = !toy.hasHeat;
   ui.heatBtn.textContent = toy.heat ? 'On' : 'Off';
   ui.heatBtn.setAttribute('aria-pressed', String(toy.heat));
@@ -843,6 +894,7 @@ function renderFeatures(toy) {
   const disabled = !toy.connected;
   ui.heatBtn.disabled = disabled;
   buttons.forEach((b) => { b.disabled = disabled; });
+  extraButtons.forEach((r) => { $('button', r).disabled = disabled; });
 }
 
 function updateBattery(toy) {
@@ -864,10 +916,17 @@ function renderSliders(toy) {
     const label = document.createElement('label');
     label.className = 'slider-label';
     const title = toy.linked ? linkedTitle(toy) : motorTitle(toy, m);
-    const pct = Math.round(toy.levels[m] * 100);
-    label.innerHTML = `<span>${title} <output>${pct}%</output></span><input type="range" min="0" max="100" value="${pct}">`;
+    const locked = overridden(toy, m);
+    const motor = toy.linked ? 0 : m;
+    const pct = Math.round((locked ? effectiveLevel(toy, motor) : toy.levels[m]) * 100);
+    label.innerHTML = `<span>${title} <output>${locked ? `All toys ${pct}%` : `${pct}%`}</output></span><input type="range" min="0" max="100" value="${pct}">`;
     const input = $('input', label);
     const out = $('output', label);
+    if (locked) {
+      input.disabled = true;   // the All toys panel sets this level (Override); turn Override off to use this slider
+      row.classList.add('overridden');
+      row.title = 'Set by the All toys panel (Override is on)';
+    }
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'motor-toggle';
@@ -1122,7 +1181,7 @@ function typeActive(toy, type) {
   const ms = motorsOfType(toy, type);
   if (!toy.connected || !toy.running || !ms.length) return false;
   if (toy.mode === 'pattern') return true;
-  return ms.some((m) => { const i = toy.linked ? 0 : m; return toy.enabled[i] && toy.levels[i] > 0; });
+  return ms.some((m) => toy.enabled[toy.linked ? 0 : m] && effectiveLevel(toy, m) > 0);
 }
 // A toy whose motors are of different kinds needs separate sliders to run one kind alone.
 function separateIfMixed(toy) {
@@ -1136,7 +1195,6 @@ function refreshToyCard(toy) {
 }
 
 function groupMotorsOn(type) {
-  const level = groupLevels[type];
   for (const toy of liveToys()) {
     const ms = motorsOfType(toy, type);
     if (!ms.length) continue;
@@ -1146,10 +1204,13 @@ function groupMotorsOn(type) {
     separateIfMixed(toy);
     for (let m = 0; m < toy.motors; m++) {
       const i = toy.linked ? 0 : m;
-      if (toy.motorTypes[m] === type) { toy.levels[i] = level; toy.enabled[i] = true; }
-      else if (!wasRunning) toy.enabled[i] = false;   // a stopped toy starts with only this function
+      if (toy.motorTypes[m] === type) {
+        toy.enabled[i] = true;
+        // Override off = the toy's own slider; give it a starting level if it's at 0.
+        if (!groupOverride[type] && toy.levels[i] === 0) toy.levels[i] = groupLevels[type];
+      } else if (!wasRunning) toy.enabled[i] = false;   // a stopped toy starts with only this function
     }
-    if (toy.linked) { toy.levels.fill(level); toy.enabled.fill(true); }
+    if (toy.linked) { toy.enabled.fill(true); toy.levels.fill(toy.levels[0]); }
     toy.running = true;
     refreshToyCard(toy);
   }
@@ -1165,15 +1226,17 @@ function groupMotorsOff(type) {
     refreshToyCard(toy);
   }
 }
+// Panel slider (Override on): sets that motor type's level on every toy, over the toys' own sliders.
 function groupMotorsLevel(type, level) {
   groupLevels[type] = level;
-  const active = liveToys().filter((t) => typeActive(t, type) && t.mode === 'manual');
-  if (!active.length) { groupMotorsOn(type); return; }   // moving the slider switches it on, like a toy's slider
-  for (const toy of active) {
-    if (toy.linked) toy.levels.fill(level);
-    else motorsOfType(toy, type).forEach((m) => { toy.levels[m] = level; });
-    if (toy.ui) renderSliders(toy);
-  }
+  const active = liveToys().some((t) => typeActive(t, type) && t.mode === 'manual');
+  if (!active && level > 0) groupMotorsOn(type);   // moving the slider switches it on, like a toy's slider
+  for (const toy of toys.values()) if (toy.ui && motorsOfType(toy, type).length) renderSliders(toy);
+}
+function setGroupOverride(type, on) {
+  groupOverride[type] = on;
+  store.set('toydeck.override', groupOverride);
+  for (const toy of toys.values()) if (toy.ui && motorsOfType(toy, type).length) renderSliders(toy);
 }
 
 // Rows: one per function that at least one saved toy has. Rebuilt only when that list changes.
@@ -1184,12 +1247,20 @@ function groupFunctions() {
   if (all.some((t) => t.hasHeat)) fns.push('heat');
   const suck = Math.max(0, ...all.filter((t) => t.hasSuck).map((t) => t.suckLevels));
   if (suck) fns.push(`suck${suck}`);
+  for (const k of Object.keys(EXTRAS)) if (all.some((t) => t.hasExtra[k])) fns.push(k);
   return fns;
 }
 function hasFunction(toy, fn) {
   if (fn in MOTOR_TYPES) return motorsOfType(toy, fn).length > 0;
   if (fn === 'heat') return toy.hasHeat;
+  if (fn in EXTRAS) return toy.hasExtra[fn];
   return toy.hasSuck;
+}
+function functionOn(toy, fn) {
+  if (fn in MOTOR_TYPES) return typeActive(toy, fn);
+  if (fn === 'heat') return toy.heat;
+  if (fn in EXTRAS) return toy.extraOn[fn];
+  return toy.suck > 0;
 }
 function renderGroups() {
   const box = document.getElementById('group-rows');
@@ -1203,33 +1274,31 @@ function renderGroups() {
   }
   refreshGroups();
 }
+function onOffButton(label) {
+  return `<button type="button" class="motor-toggle group-toggle" aria-label="${label} on all toys, on or off">Off</button>`;
+}
 function buildGroupRow(fn) {
   const row = document.createElement('div');
   row.dataset.fn = fn;
-  const name = fn in MOTOR_TYPES ? MOTOR_TYPES[fn] : fn === 'heat' ? 'Heat' : 'Suction';
+  const name = fn in MOTOR_TYPES ? MOTOR_TYPES[fn] : fn === 'heat' ? 'Heat' : fn in EXTRAS ? EXTRAS[fn].label : 'Suction';
   const head = `<span class="group-name">${name} <small class="group-count muted"></small></span>`;
   if (fn in MOTOR_TYPES) {
-    row.className = 'motor-row group-row';
+    row.className = 'motor-row group-row group-motor';
     const pct = Math.round(groupLevels[fn] * 100);
     row.innerHTML = `<label class="slider-label"><span>${head}<output>${pct}%</output></span>
-      <input type="range" min="0" max="100" value="${pct}" aria-label="${name} level on all toys"></label>
-      <button type="button" class="motor-toggle group-toggle" aria-label="${name} on all toys, on or off">Off</button>`;
+      <input type="range" min="0" max="100" value="${pct}" aria-label="${name} level on all toys">
+      <small class="group-own muted">Each toy uses its own ${name} slider</small></label>
+      <button type="button" class="override-toggle" aria-pressed="true"
+        title="On: this slider sets ${name} on every toy. Off: each toy uses its own slider.">Override</button>
+      ${onOffButton(name)}`;
     const input = $('input', row);
     input.addEventListener('input', () => { $('output', row).value = `${input.value}%`; groupMotorsLevel(fn, input.value / 100); });
-    input.addEventListener('change', () => liveToys().forEach(saveToySettings));   // remember slider positions
+    $('.override-toggle', row).addEventListener('click', () => { setGroupOverride(fn, !groupOverride[fn]); refreshGroups(); });
     $('.group-toggle', row).addEventListener('click', () => {
       if (liveToys().some((t) => typeActive(t, fn))) groupMotorsOff(fn); else groupMotorsOn(fn);
       refreshGroups();
     });
-  } else if (fn === 'heat') {
-    row.className = 'feature group-row';
-    row.innerHTML = `${head}<button type="button" class="motor-toggle group-toggle" aria-label="Heat on all toys, on or off">Off</button>`;
-    $('.group-toggle', row).addEventListener('click', () => {
-      const on = !liveToys().some((t) => t.hasHeat && t.heat);
-      for (const toy of liveToys()) if (toy.hasHeat) setHeat(toy, on);
-      refreshGroups();
-    });
-  } else {
+  } else if (fn.startsWith('suck')) {
     const max = +fn.slice(4);
     row.className = 'feature group-row';
     row.innerHTML = `${head}<div class="levels" role="group" aria-label="Suction level on all toys"></div>`;
@@ -1244,10 +1313,21 @@ function buildGroupRow(fn) {
       });
       return b;
     }));
+  } else {   // heat and the on/off extras
+    row.className = 'feature group-row';
+    row.innerHTML = `${head}${onOffButton(name)}`;
+    $('.group-toggle', row).addEventListener('click', () => {
+      const on = !liveToys().some((t) => hasFunction(t, fn) && functionOn(t, fn));
+      for (const toy of liveToys()) {
+        if (!hasFunction(toy, fn)) continue;
+        if (fn === 'heat') setHeat(toy, on); else setExtra(toy, fn, on);
+      }
+      refreshGroups();
+    });
   }
   return row;
 }
-// Cheap: called every tick so the buttons always match what the toys are doing.
+// Cheap: called every 250 ms so the buttons always match what the toys are doing.
 function refreshGroups() {
   const box = document.getElementById('group-rows');
   if (!box || $('#groups').hidden) return;
@@ -1258,11 +1338,16 @@ function refreshGroups() {
     const count = $('.group-count', row);
     const text = have.length ? `· ${have.length} toy${have.length > 1 ? 's' : ''}` : '· none connected';
     if (count.textContent !== text) count.textContent = text;
-    const controls = row.querySelectorAll('button, input');
-    controls.forEach((c) => { c.disabled = !have.length; });
+    row.querySelectorAll('.group-toggle, .levels button, input').forEach((c) => { c.disabled = !have.length; });
+    const ov = $('.override-toggle', row);
+    if (ov) {
+      const on = !!groupOverride[fn];
+      ov.setAttribute('aria-pressed', String(on));
+      row.classList.toggle('own-levels', !on);   // Override off: hide the panel slider
+    }
     const toggle = $('.group-toggle', row);
     if (toggle) {
-      const on = fn === 'heat' ? have.some((t) => t.heat) : have.some((t) => typeActive(t, fn));
+      const on = have.some((t) => functionOn(t, fn));
       if (toggle.getAttribute('aria-pressed') !== String(on)) {
         toggle.textContent = on ? 'On' : 'Off';
         toggle.setAttribute('aria-pressed', String(on));

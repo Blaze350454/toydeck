@@ -145,6 +145,7 @@
           <span>Suction</span>
           <div class="levels" role="group" aria-label="Suction level"></div>
         </div>
+        <div class="extra-rows"></div>
       </div>
 
       <details class="settings">
@@ -158,7 +159,12 @@
               <option value="3">3</option><option value="5">5</option><option value="8">8</option><option value="10">10</option>
             </select>
           </label>
+          <label class="check"><input type="checkbox" data-has-extra="light"> Lights</label>
+          <label class="check"><input type="checkbox" data-has-extra="squeeze"> Squeeze</label>
+          <label class="check"><input type="checkbox" data-has-extra="ripple"> Ripple</label>
+          <label class="check"><input type="checkbox" data-has-extra="squirt"> Squirt</label>
         </fieldset>
+        <p class="hint">Ripple = JoyHub's separate wiggle/ripple switch. If one of the toy's motors is what wiggles, set that motor's Type to Wiggle instead.</p>
         <label class="inline">Motors
           <select class="motors">
             <option value="1">1</option><option value="2">2</option>
@@ -170,13 +176,6 @@
         <label class="slider-label"><span>Minimum power <output class="min-out">0</output></span>
           <input class="minpower" type="range" min="0" max="200" value="0"></label>
         <p class="hint">Raise this if the toy doesn't move at low levels.</p>
-        <fieldset class="extras">
-          <legend>Other extras (only if your toy has them)</legend>
-          <label class="check"><input type="checkbox" data-extra="light"> Lights</label>
-          <label class="check"><input type="checkbox" data-extra="squeeze"> Squeeze</label>
-          <label class="check"><input type="checkbox" data-extra="wiggle"> Wiggle</label>
-          <label class="check"><input type="checkbox" data-extra="squirt"> Squirt</label>
-        </fieldset>
         <p class="debug muted"></p>
         <div class="row">
           <button type="button" class="forget ghost">Forget this toy</button>
