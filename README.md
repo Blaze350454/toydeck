@@ -32,7 +32,8 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 | **Manual / Pattern** | Choose how the toy is driven. Switching always starts **stopped**. |
 | **Start / Stop** | The main switch for that toy. Stop keeps everything where it was; Start carries on. |
 | **Motor sliders + On/Off** | Strength for each motor. On/Off mutes a motor without losing its slider position. Moving a slider switches that motor On. |
-| **Same level for all motors** | One slider (and one On/Off) for every motor. |
+| **[ ] slider limits** | Each motor slider has a **[** at its left end and a **]** at its right. Drag them in to set the lowest and highest level that slider can reach (the part outside is greyed); the slider then can't go past them, so a slip can't overshoot while you play or record. Saved per motor and synced. Patterns aren't limited. |
+| **Same level for all motors** | One slider (and one On/Off) for every motor. Its [ ] set the limits for every motor. |
 | **● Record pattern** | Records your slider moves live (each motor separately) until you tap **■ Stop recording**, then name and **Save** it. Recordings belong to that toy and appear in its Pattern list marked **●**. Recording starts the toy for you. |
 | **Pattern** list | Built-in patterns, your drawn patterns (★) and this toy's recordings (●). **Delete recording** removes a recording (tap twice). |
 | **Strength + On/Off** | How strong the pattern plays. Off = toy goes quiet while the pattern keeps its place. |

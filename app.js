@@ -147,9 +147,17 @@ function fitSlots(slots, n) {
 // Minimum power per motor (0-200 raw). Older saves (and older app versions) have one number for the whole toy.
 const readMinPowers = (s) => Array.from({ length: 4 }, (_, i) => clamp(Math.round(
   (Array.isArray(s?.minPowers) ? s.minPowers[i] : s?.minPower) ?? 0) || 0, 0, 200));
+// Slider limits per motor, in % ([low, high]): the motor's slider can't be moved outside them (the [ ] brackets).
+const readLimits = (s) => Array.from({ length: 4 }, (_, i) => {
+  const l = s?.limits?.[i];
+  const lo = clamp(Math.round(+l?.[0] || 0), 0, 99);
+  const hi = clamp(Math.round(l?.[1] == null ? 100 : +l[1] || 0), lo + 1, 100);
+  return [lo, hi];
+});
+const limitLevel = (toy, m, v) => clamp(v, toy.limits[m][0] / 100, toy.limits[m][1] / 100);
 function saveToySettings(toy) {
   toySettings[toy.key] = {
-    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], linked: toy.linked, levels: toy.levels, name: toy.name,
+    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], limits: toy.limits, linked: toy.linked, levels: toy.levels, name: toy.name,
     hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels, motorTypes: toy.motorTypes,
     extras: Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]),
   };
@@ -167,6 +175,7 @@ function makeToy(key, saved = {}) {
     slots: fitSlots(saved.slots, motors),
     motorTypes: Array.from({ length: 4 }, (_, i) => (saved.motorTypes?.[i] in MOTOR_TYPES ? saved.motorTypes[i] : 'vibe')),
     minPowers: readMinPowers(saved),   // per motor
+    limits: readLimits(saved),         // per motor slider [low, high] %
     // Slider positions are remembered; motors always start Off so nothing runs on connect.
     levels: Array.from({ length: 4 }, (_, i) => saved.levels?.[i] ?? 0),
     enabled: [true, true, true, true],   // per-motor On/Off; the card's Start/Stop is the main switch
@@ -434,7 +443,9 @@ function manualLevels(toy) {
 }
 // A motor's level: the All toys panel's level for its type when that type is on Override, else its own slider.
 function effectiveLevel(toy, m) {
-  return panelOverrides() ? groupLevel(slotKey(toy, m)) : toy.levels[toy.linked ? 0 : m];
+  if (panelOverrides()) return groupLevel(slotKey(toy, m));
+  const i = toy.linked ? 0 : m;
+  return limitLevel(toy, i, toy.levels[i]);   // a level saved before its limits were set still obeys them
 }
 function overridden() { return panelOverrides(); }
 
@@ -943,10 +954,12 @@ function renderSliders(toy) {
     const title = toy.linked ? linkedTitle(toy) : motorTitle(toy, m);
     const locked = overridden(toy, m);
     const motor = toy.linked ? 0 : m;
-    const pct = Math.round((locked ? effectiveLevel(toy, motor) : toy.levels[m]) * 100);
-    label.innerHTML = `<span>${title} <output>${locked ? `All toys ${pct}%` : `${pct}%`}</output></span><input type="range" min="0" max="100" value="${pct}">`;
+    const pct = Math.round((locked ? effectiveLevel(toy, motor) : limitLevel(toy, m, toy.levels[m])) * 100);
+    label.innerHTML = `<span>${title} <output>${locked ? `All toys ${pct}%` : `${pct}%`}</output></span>`
+      + `<div class="range-wrap"><input type="range" min="0" max="100" value="${pct}"></div>`;
     const input = $('input', label);
     const out = $('output', label);
+    if (!locked) addLimitBrackets(toy, m, $('.range-wrap', label), input, out, title);
     if (locked) {
       input.disabled = true;   // the All toys panel sets this level (Override); turn Override off to use this slider
       row.classList.add('overridden');
@@ -965,6 +978,8 @@ function renderSliders(toy) {
     setOn(toy.enabled[m]);
     btn.addEventListener('click', () => setOn(!toy.enabled[m]));
     input.addEventListener('input', () => {
+      const [lo, hi] = toy.limits[m];
+      if (+input.value < lo || +input.value > hi) input.value = String(clamp(+input.value, lo, hi));   // never past a bracket
       const v = input.value / 100;
       if (toy.linked) toy.levels.fill(v); else toy.levels[m] = v;
       out.value = `${input.value}%`;
@@ -975,6 +990,84 @@ function renderSliders(toy) {
     toy.ui.sliders.append(row);
   }
   toy.ui.link.closest('label').hidden = toy.motors < 2;
+}
+
+// The [ and ] on a motor slider: drag them in to set the lowest and highest level that slider can reach,
+// so a slip of the finger can't go past them (handy while recording). Linked sliders set every motor's limits.
+const THUMB_PX = 16;   // native range thumb width: brackets sit just outside the thumb at each limit
+function addLimitBrackets(toy, m, wrap, input, out, title) {
+  const shade = [document.createElement('i'), document.createElement('i')];
+  shade[0].className = 'lim-shade lo';
+  shade[1].className = 'lim-shade hi';
+  const mk = (side) => {
+    const h = document.createElement('span');
+    h.className = `lim lim-${side}`;
+    h.tabIndex = 0;
+    h.setAttribute('role', 'slider');
+    h.setAttribute('aria-label', `${title} ${side === 'lo' ? 'lowest' : 'highest'} level`);
+    h.setAttribute('aria-valuemin', '0');
+    h.setAttribute('aria-valuemax', '100');
+    return h;
+  };
+  const handles = { lo: mk('lo'), hi: mk('hi') };
+  const pos = (p) => `calc(${THUMB_PX / 2}px + (100% - ${THUMB_PX}px) * ${p / 100})`;
+  const draw = () => {
+    const [lo, hi] = toy.limits[m];
+    handles.lo.style.left = `calc(${pos(lo)} - ${THUMB_PX / 2}px)`;
+    handles.hi.style.left = `calc(${pos(hi)} + ${THUMB_PX / 2}px)`;
+    handles.lo.setAttribute('aria-valuenow', String(lo));
+    handles.hi.setAttribute('aria-valuenow', String(hi));
+    shade[0].style.width = `calc(${pos(lo)} - ${THUMB_PX / 2}px)`;
+    shade[1].style.left = `calc(${pos(hi)} + ${THUMB_PX / 2}px)`;
+    wrap.classList.toggle('limited', lo > 0 || hi < 100);
+    wrap.title = lo > 0 || hi < 100 ? `Limited to ${lo}–${hi}%` : '';
+  };
+  const set = (side, p) => {
+    const l = [...toy.limits[m]];
+    if (side === 'lo') l[0] = clamp(Math.round(p), 0, l[1] - 1); else l[1] = clamp(Math.round(p), l[0] + 1, 100);
+    if (toy.linked) toy.limits.forEach((_, i) => { toy.limits[i] = [...l]; }); else toy.limits[m] = l;
+    // the level follows a bracket that's pushed past it
+    const v = clamp(+input.value, l[0], l[1]);
+    if (v !== +input.value) {
+      input.value = String(v);
+      if (toy.linked) toy.levels.fill(v / 100); else toy.levels[m] = v / 100;
+      out.value = `${v}%`;
+    }
+    draw();
+  };
+  for (const [side, h] of Object.entries(handles)) {
+    h.addEventListener('click', (e) => e.preventDefault());   // inside the label: don't hand the tap to the slider
+    h.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      h.classList.add('dragging');
+      const move = (ev) => {
+        const r = input.getBoundingClientRect();
+        const x = ev.clientX - r.left + (side === 'lo' ? THUMB_PX / 2 : -THUMB_PX / 2);   // the bracket is beside the thumb
+        set(side, ((x - THUMB_PX / 2) / (r.width - THUMB_PX)) * 100);
+      };
+      move(e);
+      const up = () => {
+        h.classList.remove('dragging');
+        h.removeEventListener('pointermove', move);
+        h.removeEventListener('pointerup', up);
+        h.removeEventListener('pointercancel', up);
+        saveToySettings(toy);
+      };
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', up);
+      h.addEventListener('pointercancel', up);
+    });
+    h.addEventListener('keydown', (e) => {
+      const step = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      set(side, toy.limits[m][side === 'lo' ? 0 : 1] + step * (e.shiftKey ? 10 : 1));
+      saveToySettings(toy);
+    });
+  }
+  wrap.append(shade[0], shade[1], handles.lo, handles.hi);
+  draw();
 }
 
 // Slider names: "Vibe" / "Thrust", numbered when a toy has two of the same kind.
@@ -1274,7 +1367,7 @@ function groupMotorsOn(type) {
       if (ms.includes(m)) {   // this row's motor(s)
         toy.enabled[i] = true;
         // Override off = the toy's own slider; give it a starting level if it's at 0.
-        if (!overrideOn && toy.levels[i] === 0) toy.levels[i] = groupLevel(type);
+        if (!overrideOn && toy.levels[i] === 0) toy.levels[i] = limitLevel(toy, i, groupLevel(type));
       } else if (!wasRunning) toy.enabled[i] = false;   // a stopped toy starts with only this function
     }
     if (toy.linked) { toy.enabled.fill(true); toy.levels.fill(toy.levels[0]); }
@@ -1849,6 +1942,7 @@ function applySavedSettings(toy, s) {
   toy.slots = fitSlots(s.slots, toy.motors);
   toy.motorTypes = Array.from({ length: 4 }, (_, i) => (s.motorTypes?.[i] in MOTOR_TYPES ? s.motorTypes[i] : 'vibe'));
   toy.minPowers = readMinPowers(s);
+  toy.limits = readLimits(s);
   toy.linked = s.linked ?? true;
   if (!toy.connected) toy.levels = Array.from({ length: 4 }, (_, i) => s.levels?.[i] ?? 0);
   toy.hasHeat = s.hasHeat ?? false;

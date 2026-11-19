@@ -325,6 +325,31 @@ dialog::backdrop { background: #0008; }
 /* Slider colour by motor type (toy cards and the All toys panel) */
 :root { --vibe: #16a34a; --thrust: #ea580c; --wiggle: #8b5cf6; --flip: #0891b2; --suction: #db2777; }
 @media (prefers-color-scheme: dark) { :root { --vibe: #22c55e; --thrust: #f97316; --wiggle: #a78bfa; --flip: #22d3ee; --suction: #f472b6; } }
+.type-vibe { --type: var(--vibe); }
+.type-thrust { --type: var(--thrust); }
+.type-wiggle { --type: var(--wiggle); }
+.type-flip { --type: var(--flip); }
+.type-suction { --type: var(--suction); }
+/* Motor slider limits: [ and ] brackets beside the thumb; the track outside them is shaded */
+.range-wrap { position: relative; }
+.lim-shade { position: absolute; inset-block: 25%; pointer-events: none; background: color-mix(in srgb, var(--card) 72%, transparent); }
+.lim-shade.lo { left: 0; }
+.lim-shade.hi { right: 0; }
+.range-wrap:not(.limited) .lim-shade { display: none; }
+.lim {
+  position: absolute; inset-block: 0; inline-size: 18px; translate: -100% 0; cursor: ew-resize; touch-action: none;
+  color: var(--type, var(--accent)); opacity: 0.55;
+}
+.lim-hi { translate: 0 0; }
+.lim::before {   /* the bracket itself, drawn against the inside edge */
+  content: ""; position: absolute; inset-block: 22%; inline-size: 6px;
+  border: 2.5px solid currentColor; border-radius: 2px;
+}
+.lim-lo::before { right: 0; border-right: 0; }
+.lim-hi::before { left: 0; border-left: 0; }
+.range-wrap.limited .lim, .lim:hover, .lim:focus-visible, .lim.dragging { opacity: 1; }
+.lim:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.motor-row.off .lim { opacity: 0.35; }
 .type-vibe input[type="range"] { accent-color: var(--vibe); }
 .type-thrust input[type="range"] { accent-color: var(--thrust); }
 .type-wiggle input[type="range"] { accent-color: var(--wiggle); }
