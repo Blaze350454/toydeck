@@ -1276,3 +1276,18 @@ installBtn.addEventListener('click', async () => {
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });
 }
+
+// Restart: stop every toy, fetch the newest version of the app, reload. Saved toys reconnect by themselves.
+const restartBtn = $('#restart-app');
+restartBtn.addEventListener('click', async () => {
+  if (restartBtn.disabled) return;
+  restartBtn.disabled = true;
+  restartBtn.textContent = 'Restarting…';
+  stopAll();
+  await new Promise((r) => setTimeout(r, 400));   // let the stop commands reach the toys
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.update();                           // picks up a new version of the offline cache
+  } catch { /* offline: reload the cached copy */ }
+  location.reload();
+});

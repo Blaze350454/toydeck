@@ -16,6 +16,7 @@ Web Bluetooth doesn't work in Safari/iPhone or Firefox.
 2. Open **Toy settings** on the card the first time and set it up (see below).
 3. Choose **Manual** or **Pattern**, then tap the green **Start**. Tap the red **Stop** to pause.
 4. **STOP ALL** (or the **Space** key on a PC) stops every toy: motors, suction and heat.
+5. **↻ Restart app** (top bar) stops every toy, loads the newest version of ToyDeck and reloads. Your saved toys reconnect by themselves; no need to close and reopen the app after an update.
 
 ## Each toy card
 Toys you've added before open **minimized**: just the toy's picture, name and status. **Tap the card to open
