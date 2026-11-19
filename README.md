@@ -23,7 +23,7 @@ Toys you've added before open **minimized**: just the toy's picture, name and st
 its controls**, and tap the top of the card (picture and name) to minimize it again. A minimized toy that's
 playing shows a green **Running** tag; **STOP ALL** still stops it. A toy you've just added opens full size.
 
-Pictures are matched by the toy's Bluetooth name (currently **J-Phantom** and **J-Pinhead**) and are stored inside the app, so they work offline; other toys show the ToyDeck icon.
+Pictures are matched by the toy's Bluetooth name (currently Faunus, Flamewing, Phantom, Pinhead, Punch, Rhythmic3, Rosella, Royaleye, Viele and VividWings) and are stored inside the app, so they work offline; other toys show the ToyDeck icon.
 
 The **J-** that every JoyHub toy name starts with is left off on screen (J-Phantom shows as **Phantom**). Chrome's own Bluetooth list still shows the full name.
 
@@ -63,8 +63,8 @@ Opens **minimized**, like the toy cards: tap **All toys** to open its controls, 
   - Motor rows are numbered when any toy has more than one of that kind: **Vibe 1** = every toy's first vibe motor, **Vibe 2** = every toy's second, matching the names on the toy cards.
   - **On** sets that function on every *connected* toy that has it to the row's level and starts it. A stopped toy starts with only that function; its other motors stay off.
   - **Off** turns that function off on every toy. A toy playing a **pattern** stops completely, because a pattern drives all its motors together.
-  - **Override** (one button, at the top of the list) covers every motor on every toy. **On** (the default): the row sliders set the levels, over the toys' own sliders; toy sliders show "All toys 80%" and are locked.
-    **Off**: each toy uses its own sliders (set them on each toy) and the row sliders hide. Your own levels come back exactly as you left them.
+  - **Override** (one button, at the top of the list) covers every motor on every toy. **On**: the row sliders set the levels, over the toys' own sliders; toy sliders show "All toys 80%" and are locked.
+    **Off** (the default): each toy uses its own sliders (set them on each toy) and the row sliders hide. Your own levels come back exactly as you left them.
   - Moving a row's slider switches it on, like a toy's own slider. Override is remembered on this device.
   - Toys that aren't connected are never changed, so nothing starts by surprise when one connects.
 - **Master level:** scales every toy at once.

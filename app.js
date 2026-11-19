@@ -122,8 +122,9 @@ const MOTOR_FN = /^(vibe|thrust|wiggle|suction)([1-4])$/;
 const isMotorFn = (fn) => MOTOR_FN.test(fn);
 const groupLevels = {};   // panel level per row ("vibe1", "thrust1"...)
 const groupLevel = (fn) => groupLevels[fn] ?? 0.5;
-// Override on: the panel's levels drive every motor on every toy. Off: each toy uses its own sliders.
-let overrideOn = (() => { const v = store.get('toydeck.override', true); return typeof v === 'boolean' ? v : true; })();
+// Override on: the panel's levels drive every motor on every toy. Off (the default): each toy uses its own sliders.
+// New key 'toydeck.overrideOn' (was 'toydeck.override', default on) so every device starts Off once after the change.
+let overrideOn = store.get('toydeck.overrideOn', false) === true;
 // Panel off: the All toys panel has no effect on any toy (no override, no master level, no group switches).
 let panelOn = store.get('toydeck.panelOn', true) !== false;
 const panelOverrides = () => panelOn && overrideOn;
@@ -678,8 +679,16 @@ function setStrength(toy, pct) {
 // Toy pictures, looked up by the toy's Bluetooth name. To add one: put the image in toys/
 // (and in FILES in sw.js) and add a line here. The key is the name lowercased with only letters and digits.
 const TOY_PICS = {
+  jfaunus: 'toys/j-faunus.webp',
+  jflamewing: 'toys/j-flamewing.webp',
   jphantom: 'toys/j-phantom.webp',
   jpinhead: 'toys/j-pinhead.webp',
+  jpunch: 'toys/j-punch.webp',
+  jrhythmic3: 'toys/j-rhythmic3.webp',
+  jrosella: 'toys/j-rosella.webp',       // J-ROSELLA2 matches by prefix
+  jroyaleye: 'toys/j-royaleye.webp',
+  jviele: 'toys/j-viele.webp',
+  jvividwings: 'toys/j-vividwings.webp',
 };
 const FALLBACK_PIC = 'icons/icon.svg';
 function toyPicture(name) {
@@ -1267,7 +1276,7 @@ function groupMotorsLevel(type, level) {
 }
 function setOverride(on) {
   overrideOn = on;
-  store.set('toydeck.override', on);
+  store.set('toydeck.overrideOn', on);
   for (const toy of toys.values()) if (toy.ui) renderSliders(toy);
   refreshGroups();
 }

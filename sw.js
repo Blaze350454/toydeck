@@ -1,10 +1,11 @@
 // Offline cache: always try the network first (so updates show up immediately),
 // fall back to the cached copy when offline.
-const CACHE = 'toydeck-v16';
+const CACHE = 'toydeck-v17';
 const FILES = [
   './', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
-  'toys/j-phantom.webp', 'toys/j-pinhead.webp',
+  'toys/j-faunus.webp', 'toys/j-flamewing.webp', 'toys/j-phantom.webp', 'toys/j-pinhead.webp', 'toys/j-punch.webp',
+  'toys/j-rhythmic3.webp', 'toys/j-rosella.webp', 'toys/j-royaleye.webp', 'toys/j-viele.webp', 'toys/j-vividwings.webp',
 ];
 
 self.addEventListener('install', (e) => {
