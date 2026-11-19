@@ -1051,7 +1051,31 @@ function refreshPatternSelects() {
 
 // ---------- master controls ----------
 const master = $('#master');
-master.addEventListener('input', () => { masterLevel = master.value / 100; $('#master-out').value = `${master.value}%`; });
+master.addEventListener('input', () => {
+  masterLevel = master.value / 100;
+  $('#master-out').value = `${master.value}%`;
+  refreshMasterTag();
+});
+
+// "All toys" panel minimizes like a toy card (starts minimized). STOP ALL is outside it, so it's always showing.
+const masterCard = $('.master');
+const masterToggle = $('#master-toggle');
+function setMasterCollapsed(collapsed) {
+  masterCard.classList.toggle('collapsed', collapsed);
+  $('#master-body').hidden = collapsed;
+  masterToggle.setAttribute('aria-expanded', String(!collapsed));
+  masterToggle.title = collapsed ? 'Open the controls for all toys' : 'Minimize';
+  $('#master-hint').textContent = collapsed ? 'Tap to open controls' : '';
+  refreshMasterTag();
+}
+// While minimized, show the master level if it's turned down, so weaker toys aren't a mystery.
+function refreshMasterTag() {
+  const tag = $('#master-tag');
+  tag.textContent = `Master ${master.value}%`;
+  tag.hidden = !masterCard.classList.contains('collapsed') || +master.value === 100;
+}
+masterToggle.addEventListener('click', () => setMasterCollapsed(!masterCard.classList.contains('collapsed')));
+setMasterCollapsed(true);
 $('#stop-all').addEventListener('click', stopAll);
 $('#all-pattern').addEventListener('change', (e) => { e.target.dataset.value = e.target.value; });
 $('#apply-all').addEventListener('click', () => {

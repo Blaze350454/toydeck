@@ -32,10 +32,18 @@
 
   <main>
     <section class="master card" aria-labelledby="master-h">
-      <div class="row space">
-        <h2 id="master-h">All toys</h2>
-        <span id="toy-count" class="muted">No toys connected</span>
-      </div>
+      <button type="button" id="master-toggle" class="toy-head" aria-expanded="true" aria-controls="master-body">
+        <span class="toy-title">
+          <span id="master-h" class="toy-name">All toys</span>
+          <span class="toy-status">
+            <span id="toy-count" class="muted">No toys connected</span>
+            <span id="master-tag" class="level-tag" hidden></span>
+          </span>
+          <span id="master-hint" class="toy-hint"></span>
+        </span>
+        <span class="chev" aria-hidden="true"></span>
+      </button>
+      <div id="master-body" class="toy-body">
       <label class="slider-label">
         <span>Master level <output id="master-out">100%</output></span>
         <input id="master" type="range" min="0" max="100" value="100">
@@ -52,6 +60,8 @@
         <button id="restore" type="button" class="ghost" title="Load a backup file">Restore</button>
         <input id="restore-file" type="file" accept=".json,application/json" hidden>
       </div>
+      </div>
+      <!-- STOP ALL stays outside the minimizable part: always one tap away -->
       <button id="stop-all" type="button" class="stop">STOP ALL <kbd>Space</kbd></button>
     </section>
 

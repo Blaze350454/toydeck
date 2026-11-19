@@ -54,6 +54,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 - The grey line at the bottom shows what's being sent and received, which helps if something doesn't work.
 
 ## All toys panel
+Opens **minimized**, like the toy cards: tap **All toys** to open its controls, tap it again to minimize. **STOP ALL always shows**, minimized or not. If the master level is below 100%, the minimized panel shows an orange **Master 60%** tag.
 - **Master level:** scales every toy at once.
 - **Pattern for all → Play on all:** starts the chosen pattern on every toy. **Sync** restarts all patterns together.
 - **Edit patterns:** draw your own patterns (drag across the bars). They're shared by all toys.

@@ -227,9 +227,9 @@ button.toy-head:focus-visible { outline: 2px solid var(--accent); outline-offset
   transform: rotate(-135deg);   /* points up: tap to minimize */
   transition: transform 0.2s ease;
 }
-.toy.collapsed .chev { transform: rotate(45deg); }   /* points down: tap to open */
-.toy.collapsed { cursor: pointer; }
-.toy.collapsed:hover { border-color: var(--accent); }
+.card.collapsed .chev { transform: rotate(45deg); }   /* points down: tap to open */
+.card.collapsed { cursor: pointer; }
+.card.collapsed:hover { border-color: var(--accent); }
 /* Wide enough for wide toys (J-Pinhead), tall enough for tall ones (J-Phantom); pictures keep their shape. */
 .toy.collapsed .toy-pic-box { inline-size: 120px; block-size: 140px; }
 .toy.collapsed.no-pic .toy-pic-box { inline-size: 64px; }
@@ -270,3 +270,8 @@ dialog::backdrop { background: #0008; }
   cursor: crosshair;
 }
 .bars div { flex: 1; background: var(--accent); border-radius: 3px 3px 0 0; min-block-size: 2px; pointer-events: none; }
+.level-tag {
+  font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; white-space: nowrap;
+  background: color-mix(in srgb, var(--warn) 22%, var(--card)); color: var(--warn);
+}
+.master.collapsed button.stop { margin-top: 0; }
