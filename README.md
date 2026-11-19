@@ -23,7 +23,7 @@ Toys you've added before open **minimized**: just the toy's picture, name and st
 its controls**, and tap the top of the card (picture and name) to minimize it again. A minimized toy that's
 playing shows a green **Running** tag; **STOP ALL** still stops it. A toy you've just added opens full size.
 
-Pictures are matched by the toy's Bluetooth name (currently Faunus, Flamewing, Phantom, Pinhead, Punch, Rhythmic3, Rosella, Royaleye, Viele and VividWings) and are stored inside the app, so they work offline; other toys show the ToyDeck icon.
+Pictures are matched by the toy's Bluetooth name (currently Faunus, Flamewing, Petalwish, Phantom, Pinhead, Punch, Rhythmic3, Rosella, Royaleye, Viele and VividWings) and are stored inside the app, so they work offline; other toys show the ToyDeck icon.
 
 The **J-** that every JoyHub toy name starts with is left off on screen (J-Phantom shows as **Phantom**). Chrome's own Bluetooth list still shows the full name.
 

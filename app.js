@@ -682,6 +682,7 @@ const TOY_PICS = {
   jfaunus: 'toys/j-faunus.webp',
   jflamewing: 'toys/j-flamewing.webp',
   jphantom: 'toys/j-phantom.webp',
+  jpetalwish: 'toys/j-petalwish.webp',   // J-Petalwish2 etc. match by prefix
   jpinhead: 'toys/j-pinhead.webp',
   jpunch: 'toys/j-punch.webp',
   jrhythmic3: 'toys/j-rhythmic3.webp',
