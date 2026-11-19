@@ -961,7 +961,7 @@ function renderSliders(toy) {
       + `<div class="range-wrap"><input type="range" min="0" max="100" value="${pct}"></div>`;
     const input = $('input', label);
     const out = $('output', label);
-    if (!locked) addLimitBrackets(toy, m, $('.range-wrap', label), input, out, title, $('.motor-name', label));
+    const lockBtn = locked ? null : addLimitBrackets(toy, m, $('.range-wrap', label), input, out, title);
     if (locked) {
       input.disabled = true;   // the All toys panel sets this level (Override); turn Override off to use this slider
       row.classList.add('overridden');
@@ -989,6 +989,7 @@ function renderSliders(toy) {
     });
     input.addEventListener('change', () => saveToySettings(toy));
     row.append(label, btn);
+    if (lockBtn) { row.append(lockBtn); row.classList.add('has-lock'); }   // right of On/Off: away from the slider
     toy.ui.sliders.append(row);
   }
   toy.ui.link.closest('label').hidden = toy.motors < 2;
@@ -997,9 +998,9 @@ function renderSliders(toy) {
 // The [ and ] on a motor slider: drag them in to set the lowest and highest level that slider can reach,
 // so a slip of the finger can't go past them (handy while recording). Linked sliders set every motor's limits.
 const THUMB_PX = 16;   // native range thumb width: brackets sit just outside the thumb at each limit
-const LOCK_SVG = (closed) => `<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/>`
+const LOCK_SVG = (closed) => `<svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="currentColor"/>`
   + `<path d="${closed ? 'M5 7V5a3 3 0 0 1 6 0v2' : 'M5 7V5a3 3 0 0 1 5.8-1'}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
-function addLimitBrackets(toy, m, wrap, input, out, title, nameEl) {
+function addLimitBrackets(toy, m, wrap, input, out, title) {
   // Lock: once the limits are right, lock them so the brackets can't be moved by accident. The slider still works.
   const lockBtn = document.createElement('button');
   lockBtn.type = 'button';
@@ -1025,7 +1026,6 @@ function addLimitBrackets(toy, m, wrap, input, out, title, nameEl) {
     drawLock();
     saveToySettings(toy);
   });
-  nameEl.append(lockBtn);
   const shade = [document.createElement('i'), document.createElement('i')];
   shade[0].className = 'lim-shade lo';
   shade[1].className = 'lim-shade hi';
@@ -1134,6 +1134,7 @@ function addLimitBrackets(toy, m, wrap, input, out, title, nameEl) {
   wrap.append(shade[0], shade[1], handles.lo, handles.hi, tip);
   drawLock();
   draw();
+  return lockBtn;   // the caller puts it at the end of the row
 }
 
 // Slider names: "Vibe" / "Thrust", numbered when a toy has two of the same kind.

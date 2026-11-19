@@ -331,7 +331,7 @@ dialog::backdrop { background: #0008; }
 .type-flip { --type: var(--flip); }
 .type-suction { --type: var(--suction); }
 /* Motor slider limits: [ and ] brackets beside the thumb; the track outside them is shaded */
-.range-wrap { position: relative; }
+.range-wrap { position: relative; margin-inline: 12px; }   /* room for the brackets' grab areas, so they never cover On/Off */
 .lim-shade { position: absolute; inset-block: 25%; pointer-events: none; background: color-mix(in srgb, var(--card) 72%, transparent); }
 .lim-shade.lo { left: 0; }
 .lim-shade.hi { right: 0; }
@@ -351,10 +351,14 @@ dialog::backdrop { background: #0008; }
 .lim:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
 .motor-row.off .lim { opacity: 0.35; }
 .motor-name { display: inline-flex; align-items: center; gap: 0.15rem; }
+/* Limit padlock: its own button at the end of the motor row, right of a narrower On/Off */
+.motor-row.has-lock { grid-template-columns: 1fr auto auto; gap: 0.5rem; }
+.motor-row.has-lock .motor-toggle { min-inline-size: 3.1rem; padding-inline: 0.5rem; }
 .lim-lock {
-  display: inline-grid; place-items: center; inline-size: 1.9rem; block-size: 1.6rem; min-block-size: 0; padding: 0;
-  margin-block: -0.35rem; border: 0; background: none; color: var(--lock-open); cursor: pointer;   /* unlocked: orange */
+  display: inline-grid; place-items: center; min-inline-size: 2.5rem; padding: 0;
+  color: var(--lock-open); border-color: color-mix(in srgb, currentColor 50%, var(--line));   /* unlocked: orange */
 }
+.lim-lock:hover { border-color: currentColor; }
 .lim-lock[aria-pressed="true"] { color: var(--lock-shut); }   /* locked: green */
 .lim-locked .lim { pointer-events: none; cursor: default; }
 .lim-tip {
