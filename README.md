@@ -76,7 +76,8 @@ Opens **minimized**, like the toy cards: tap **All toys** to open its controls, 
   about 30 seconds (or straight away when you switch back to the app). A green dot on the button means sync is
   working, a red one means it isn't (open it to see why).
   - **Set up, once per device:** tap **Sync devices**, check the repo (`yourname/toydeck-sync`), paste your access
-    token, tap **Save and sync**. Use the same token on every device. It's kept only on that device.
+    token, tap **Save and sync**. GitHub shows a token only once, so the easy way is one token per device, made on
+    that device (the same token on every device works too). It's kept only on that device.
   - **Getting the token (once):** github.com → Settings → Developer settings → Personal access tokens → Fine-grained
     tokens → Generate new token. Repository access: *Only select repositories* → `toydeck-sync`.
     Permissions: *Contents* → *Read and write*. If it expires, make a new one and paste it on each device.
