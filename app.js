@@ -144,9 +144,12 @@ function fitSlots(slots, n) {
   for (let s = 1; out.length < n; s++) if (!out.includes(s)) out.push(s);
   return out;
 }
+// Minimum power per motor (0-200 raw). Older saves (and older app versions) have one number for the whole toy.
+const readMinPowers = (s) => Array.from({ length: 4 }, (_, i) => clamp(Math.round(
+  (Array.isArray(s?.minPowers) ? s.minPowers[i] : s?.minPower) ?? 0) || 0, 0, 200));
 function saveToySettings(toy) {
   toySettings[toy.key] = {
-    motors: toy.motors, slots: toy.slots, minPower: toy.minPower, linked: toy.linked, levels: toy.levels, name: toy.name,
+    motors: toy.motors, slots: toy.slots, minPowers: toy.minPowers, minPower: toy.minPowers[0], linked: toy.linked, levels: toy.levels, name: toy.name,
     hasHeat: toy.hasHeat, hasSuck: toy.hasSuck, suckLevels: toy.suckLevels, motorTypes: toy.motorTypes,
     extras: Object.keys(EXTRAS).filter((k) => toy.hasExtra[k]),
   };
@@ -163,7 +166,7 @@ function makeToy(key, saved = {}) {
     motors,
     slots: fitSlots(saved.slots, motors),
     motorTypes: Array.from({ length: 4 }, (_, i) => (saved.motorTypes?.[i] in MOTOR_TYPES ? saved.motorTypes[i] : 'vibe')),
-    minPower: saved.minPower ?? 0,
+    minPowers: readMinPowers(saved),   // per motor
     // Slider positions are remembered; motors always start Off so nothing runs on connect.
     levels: Array.from({ length: 4 }, (_, i) => saved.levels?.[i] ?? 0),
     enabled: [true, true, true, true],   // per-motor On/Off; the card's Start/Stop is the main switch
@@ -414,9 +417,10 @@ function pump(toy) {
   });
 }
 
-function motorByte(toy, level) {
+function motorByte(toy, level, m) {
   if (level <= 0.001) return 0;
-  return Math.round(clamp(toy.minPower + (255 - toy.minPower) * level, 1, 255));
+  const min = toy.minPowers[m] ?? 0;
+  return Math.round(clamp(min + (255 - min) * level, 1, 255));
 }
 
 // Levels from the sliders, before the master level (what recordings capture).
@@ -455,7 +459,7 @@ function buildCommand(toy) {
   const values = Array(Math.max(MIN_SLOTS, ...toy.slots)).fill(0);
   currentLevels(toy).forEach((l, m) => {
     const i = toy.slots[m] - 1;
-    values[i] = Math.max(values[i], motorByte(toy, l));
+    values[i] = Math.max(values[i], motorByte(toy, l, m));
   });
   return new Uint8Array([0xa0, 0x03, ...values, 0xaa]);
 }
@@ -756,8 +760,7 @@ function buildToyCard(toy) {
     pspeedOut: $('.pspeed-out', el),
     offset: $('.offset', el),
     motors: $('.motors', el),
-    minpower: $('.minpower', el),
-    minOut: $('.min-out', el),
+    minpowers: $('.minpowers', el),
     debug: $('.debug', el),
     connect: $('.connect', el),
     disconnect: $('.disconnect', el),
@@ -854,10 +857,6 @@ function buildToyCard(toy) {
     saveToySettings(toy);
     syncToyUI(toy);
   });
-  ui.minpower.value = String(toy.minPower);
-  ui.minOut.value = String(toy.minPower);
-  ui.minpower.addEventListener('input', () => { toy.minPower = +ui.minpower.value; ui.minOut.value = ui.minpower.value; });
-  ui.minpower.addEventListener('change', () => saveToySettings(toy));
   el.querySelectorAll('[data-has-extra]').forEach((cb) => {
     const k = cb.dataset.hasExtra;
     cb.checked = toy.hasExtra[k];
@@ -1006,6 +1005,7 @@ function renderSlotMap(toy) {
       toy.motorTypes[m] = typeSel.value;
       saveToySettings(toy);
       renderSliders(toy);
+      renderMinPowers(toy);   // names and colours follow the type
     });
     typeLabel.append(typeSel);
     const chLabel = document.createElement('label');
@@ -1017,6 +1017,28 @@ function renderSlotMap(toy) {
     sel.addEventListener('change', () => { toy.slots[m] = +sel.value; saveToySettings(toy); });
     chLabel.append(sel);
     row.append(name, typeLabel, chLabel);
+    return row;
+  }));
+  renderMinPowers(toy);
+}
+
+// Minimum power: one slider per motor, named and coloured like its level slider ("Vibe", "Thrust 2"...).
+// Motors on one toy can stall at different levels, so each gets its own floor.
+function renderMinPowers(toy) {
+  const box = toy.ui.minpowers;
+  box.hidden = toy.motors === 0;
+  box.replaceChildren(...Array.from({ length: toy.motors }, (_, m) => {
+    const row = document.createElement('div');
+    row.className = `type-${toy.motorTypes[m]}`;
+    const label = document.createElement('label');
+    label.className = 'slider-label';
+    label.innerHTML = `<span>${motorTitle(toy, m)} minimum <output>${toy.minPowers[m]}</output></span><input type="range" min="0" max="200" value="${toy.minPowers[m]}">`;
+    const input = $('input', label);
+    const out = $('output', label);
+    input.setAttribute('aria-label', `${motorTitle(toy, m)} minimum power`);
+    input.addEventListener('input', () => { toy.minPowers[m] = +input.value; out.value = input.value; });
+    input.addEventListener('change', () => saveToySettings(toy));
+    row.append(label);
     return row;
   }));
 }
@@ -1821,12 +1843,12 @@ function applyMerged(m, rename) {
 }
 
 function applySavedSettings(toy, s) {
-  const setupBefore = stable([toy.motors, toy.slots, toy.motorTypes, toy.minPower]);
+  const setupBefore = stable([toy.motors, toy.slots, toy.motorTypes, toy.minPowers]);
   if (!toy.device && s.name) toy.name = s.name;
   toy.motors = s.motors ?? toy.motors;
   toy.slots = fitSlots(s.slots, toy.motors);
   toy.motorTypes = Array.from({ length: 4 }, (_, i) => (s.motorTypes?.[i] in MOTOR_TYPES ? s.motorTypes[i] : 'vibe'));
-  toy.minPower = s.minPower ?? 0;
+  toy.minPowers = readMinPowers(s);
   toy.linked = s.linked ?? true;
   if (!toy.connected) toy.levels = Array.from({ length: 4 }, (_, i) => s.levels?.[i] ?? 0);
   toy.hasHeat = s.hasHeat ?? false;
@@ -1837,7 +1859,7 @@ function applySavedSettings(toy, s) {
   if (!toy.hasHeat && toy.heat) setHeat(toy, false);
   if ((!toy.hasSuck && toy.suck) || toy.suck > toy.suckLevels) setSuction(toy, toy.hasSuck ? toy.suckLevels : 0);
   for (const k of extrasOn(toy)) if (!toy.hasExtra[k]) setExtra(toy, k, false);
-  if (toy.running && stable([toy.motors, toy.slots, toy.motorTypes, toy.minPower]) !== setupBefore) {
+  if (toy.running && stable([toy.motors, toy.slots, toy.motorTypes, toy.minPowers]) !== setupBefore) {
     stopToy(toy);
     say(`${shownName(toy)}'s setup changed on your other device, so it stopped. Press Start.`, true);
   }
@@ -1845,7 +1867,6 @@ function applySavedSettings(toy, s) {
   if (!ui) return;
   ui.link.checked = toy.linked;
   ui.motors.value = String(toy.motors);
-  ui.minpower.value = ui.minOut.value = String(toy.minPower);
   ui.hasHeat.checked = toy.hasHeat;
   ui.hasSuck.checked = toy.hasSuck;
   ui.suckLevels.value = String(toy.suckLevels);

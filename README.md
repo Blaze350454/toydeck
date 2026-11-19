@@ -51,7 +51,7 @@ The **J-** that every JoyHub toy name starts with is left off on screen (J-Phant
 - **Motor type:** **Vibe**, **Thrust**, **Wiggle**, **Flipper** or **Suction** for each motor. Sliders are coloured by type: Vibe green, Thrust orange, Wiggle purple, Flipper cyan, Suction pink. A one-motor flipper toy: Motors 1, Type Flipper. Its slider is named after it, and the All toys panel uses it (below).
 - **Motor channel:** which of the toy's 4 command positions each motor uses. If a motor slider does nothing, try another channel.
   *J-VividWings: 2 motors on channels 1 and 3.*
-- **Minimum power:** raise it if the toy doesn't move at low slider levels.
+- **Minimum power:** one slider per motor, named after it (Vibe, Wiggle, Thrust…). Raise a motor's minimum if it stops or stutters at low levels while the toy's other motors keep going; 1% on that motor then starts from its minimum.
 - **Forget this toy:** removes it and its recordings (tap twice).
 - The grey line at the bottom shows what's being sent and received, which helps if something doesn't work.
 

@@ -184,10 +184,12 @@
           </select>
         </label>
         <div class="slot-map"></div>
-        <p class="hint">Type = what the motor does (Vibe or Thrust); the All toys panel uses it to switch that kind on or off on every toy. Channel = which of the toy's 4 command positions drives that motor. If a motor slider does nothing, try another channel.</p>
-        <label class="slider-label"><span>Minimum power <output class="min-out">0</output></span>
-          <input class="minpower" type="range" min="0" max="200" value="0"></label>
-        <p class="hint">Raise this if the toy doesn't move at low levels.</p>
+        <p class="hint">Type = what the motor does (Vibe, Thrust, Wiggle, Flipper or Suction); the All toys panel uses it to switch that kind on or off on every toy. Channel = which of the toy's 4 command positions drives that motor. If a motor slider does nothing, try another channel.</p>
+        <fieldset class="minpowers-box">
+          <legend>Minimum power</legend>
+          <div class="minpowers"></div>
+          <p class="hint">One per motor. Raise a motor's minimum if it stops (or stutters) at low levels while the others keep going; 1% on its slider then starts from this power.</p>
+        </fieldset>
         <p class="debug muted"></p>
         <div class="row">
           <button type="button" class="forget ghost">Forget this toy</button>
